@@ -1,0 +1,32 @@
+export const colors = {
+  bg: '#f8f7f3',
+  surface: '#ffffff',
+  border: '#e3e6de',
+  text: '#222e28',
+  textSub: '#737a72',
+  placeholder: '#999f96',
+  primary: '#285a43',
+  tint: '#eaf0e6',
+  disabled: '#dde2d9',
+  warn: '#8d6134',
+  warnBg: '#f4ebdd',
+  error: '#a44d3e',
+  errorBg: '#f8ede7',
+  scrim: 'rgba(25,44,37,0.4)',
+  skeleton: '#d9d9d9',
+} as const;
+
+export const fonts = {
+  regular: 'NotoSansKR_400Regular',
+  medium: 'NotoSansKR_500Medium',
+  bold: 'NotoSansKR_700Bold',
+  serif: 'NotoSerifKR_600SemiBold',
+} as const;
+
+export const radius = {
+  input: 10,
+  button: 12,
+  card: 16,
+  chip: 6,
+  pill: 20,
+} as const;
