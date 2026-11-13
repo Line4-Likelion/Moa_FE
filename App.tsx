@@ -16,6 +16,7 @@ import { LoginScreen, SignupScreen } from './src/screens/AuthScreens';
 import { CategoryAddScreen, CategoryChangeScreen } from './src/screens/CategoryScreens';
 import { DevHomeScreen, PracticeScreen } from './src/screens/DevHomeScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { SortScreen } from './src/screens/SortScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import {
   LocationPermissionScreen,
@@ -73,6 +74,7 @@ export default function App() {
           <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
           <Stack.Screen name="NotificationPermission" component={NotificationPermissionScreen} />
           <Stack.Screen name="DevIndex" component={DevHomeScreen} />
+          <Stack.Screen name="Sort" component={SortScreen} options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

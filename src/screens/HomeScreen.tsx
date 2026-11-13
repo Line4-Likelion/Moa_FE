@@ -4,12 +4,13 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Button } from '../components/Button';
+import { UNSORTED_SCREENSHOTS } from '../mock/screenshots';
 import { colors, fonts, radius } from '../theme';
 
 /* ───────── 목업 데이터 (갤러리 / API 연동 시 이 부분만 교체) ───────── */
 
 /** 아직 분류하지 않은 스크린샷 개수 */
-const UNSORTED_COUNT = 12;
+const UNSORTED_COUNT = UNSORTED_SCREENSHOTS.length;
 /** 홈에 미리보기로 보여줄 썸네일 칸 수 (마지막 칸은 +n 표시) */
 const PREVIEW_SLOTS = 5;
 
@@ -90,9 +91,7 @@ export function HomeScreen() {
 
       <SortSection
         count={UNSORTED_COUNT}
-        onSort={() => {
-          /* TODO: 스와이프 분류 화면으로 이동 (팀원 A 담당 화면) */
-        }}
+        onSort={() => nav.navigate('Sort')}
       />
 
       <ReminderCard
