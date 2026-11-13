@@ -14,6 +14,10 @@ export const colors = {
   errorBg: '#f8ede7',
   scrim: 'rgba(25,44,37,0.4)',
   skeleton: '#d9d9d9',
+  /** 홈 실천 달력(잔디) */
+  grassSorted: '#b5d1ab',
+  grassEmpty: '#ebebe8',
+  grassFuture: '#f3f3f1',
 } as const;
 
 export const fonts = {

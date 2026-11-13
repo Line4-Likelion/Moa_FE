@@ -21,6 +21,8 @@ export type RootStackParamList = {
   PhotoPermission: undefined;
   LocationPermission: undefined;
   NotificationPermission: undefined;
+  /** 개발용 화면 목차 (홈 MoA 로고 길게 누르기) */
+  DevIndex: undefined;
 };
 
 declare global {

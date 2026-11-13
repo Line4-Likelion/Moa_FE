@@ -15,6 +15,7 @@ import { ArchiveScreen } from './src/screens/ArchiveScreen';
 import { LoginScreen, SignupScreen } from './src/screens/AuthScreens';
 import { CategoryAddScreen, CategoryChangeScreen } from './src/screens/CategoryScreens';
 import { DevHomeScreen, PracticeScreen } from './src/screens/DevHomeScreen';
+import { HomeScreen } from './src/screens/HomeScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import {
   LocationPermissionScreen,
@@ -35,7 +36,7 @@ const navTheme = {
 function Tabs() {
   return (
     <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Home" component={DevHomeScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Practice" component={PracticeScreen} />
       <Tab.Screen name="Archive" component={ArchiveScreen} />
       <Tab.Screen name="My" component={MyScreen} />
@@ -71,6 +72,7 @@ export default function App() {
           <Stack.Screen name="PhotoPermission" component={PhotoPermissionScreen} />
           <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
           <Stack.Screen name="NotificationPermission" component={NotificationPermissionScreen} />
+          <Stack.Screen name="DevIndex" component={DevHomeScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

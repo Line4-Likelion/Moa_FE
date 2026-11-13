@@ -7,7 +7,7 @@ import { colors, fonts } from '../theme';
 
 type Item = { label: string; code: string; go: () => void };
 
-/** 홈/실천함은 아직 디자인 범위 밖 → 임시로 "인선" 화면 전체를 열어볼 수 있는 목차로 사용 */
+/** 개발용 화면 목차. 홈 화면의 MoA 로고를 길게 누르면 열려요. */
 export function DevHomeScreen() {
   const nav = useNavigation();
 
@@ -28,8 +28,8 @@ export function DevHomeScreen() {
   ];
 
   return (
-    <Screen title="MOA 화면 목록" hasTabBar>
-      <Caption>개발용 목차예요. 홈 디자인이 들어오면 교체됩니다.</Caption>
+    <Screen title="MOA 화면 목록" onBack={() => nav.goBack()}>
+      <Caption>개발용 목차예요. 홈 화면의 MoA 로고를 길게 누르면 열려요.</Caption>
       <Card style={{ padding: 4, gap: 0 }}>
         {items.map((item, i) => (
           <Pressable
