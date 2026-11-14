@@ -15,12 +15,18 @@ export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   CategoryAdd: undefined;
   /** label: 카테고리를 바꿀 항목 이름 (예: "연남 소바실", "3개 항목") */
-  CategoryChange: { label: string };
+  CategoryChange: { label: string; ids?: string[] };
   ReminderSettings: undefined;
   SettingsSaveFailed: undefined;
   PhotoPermission: undefined;
   LocationPermission: undefined;
   NotificationPermission: undefined;
+  /** 실천 상세 (알림 딥링크 moa://captures/{id} 도 여기로) */
+  PracticeDetail: { id: string };
+  /** 원본 전체 보기. focus: 처음에 강조할 정보 key (deadline, place …) */
+  OriginalView: { id: string; focus?: string };
+  /** 추출 정보 수정 */
+  FactsEdit: { id: string };
   /** 스와이프 분류 */
   Sort: undefined;
   /** 개발용 화면 목차 (홈 MoA 로고 길게 누르기) */

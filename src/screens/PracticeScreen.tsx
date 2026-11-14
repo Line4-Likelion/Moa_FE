@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertCircle, Check, ChevronDown, Image as ImageIcon, Plus, Search, Sparkles } from 'lucide-react-native';
 import { Button } from '../components/Button';
+import { ExcludeDialog } from '../components/ExcludeDialog';
+import { UndoToast, type ToastState } from '../components/UndoToast';
 import type { TabParamList } from '../navigation/types';
 import {
   BASE_CATEGORIES,
@@ -63,7 +65,11 @@ function dueLabel(p: Practice): { text: string; color: string; bold: boolean } {
     const d = new Date(p.completedAt);
     return { text: `${d.getMonth() + 1}.${d.getDate()} 완료`, color: colors.textSub, bold: false };
   }
-  if (p.status === 'hold') return { text: '보류', color: colors.textSub, bold: false };
+  if (p.status === 'hold') {
+    const d = p.snoozeUntil ? new Date(p.snoozeUntil + 'T00:00:00') : null;
+    return { text: d ? `${d.getMonth() + 1}.${d.getDate()}까지 보류` : '보류', color: colors.textSub, bold: false };
+  }
+  if (p.deadlineUnclear) return { text: '기한 확인 필요', color: colors.warn, bold: true };
   const left = daysLeft(p);
   if (left === null) return { text: '마감 없음', color: colors.textSub, bold: false };
   if (left === 0) return { text: 'D-Day', color: colors.error, bold: true };
@@ -96,7 +102,9 @@ export function PracticeScreen() {
   const [picked, setPicked] = useState<string[]>([]);
   const [categorySheet, setCategorySheet] = useState(false);
   const [excludeIds, setExcludeIds] = useState<string[] | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToastState] = useState<ToastState>(null);
+  const setToast = (text: string, undo = false) => setToastState({ text, undo, key: Date.now() });
+  const hideToast = useCallback(() => setToastState(null), []);
 
   // 선택 모드에서는 하단 탭바 대신 선택 버튼을 보여줘요
   useEffect(() => {
@@ -105,12 +113,6 @@ export function PracticeScreen() {
 
   // 다른 탭으로 나가면 선택 모드 해제
   useEffect(() => nav.addListener('blur', () => exitSelect()), [nav]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   const exitSelect = () => {
     setSelecting(false);
@@ -165,7 +167,7 @@ export function PracticeScreen() {
     picked: picked.includes(p.id),
     onPress: () => {
       if (selecting) togglePick(p.id);
-      // TODO: 실천 상세 화면으로 이동 (팀원 C) — 단계 체크, 보류, 마감 변경은 상세에서
+      else rootNav.navigate('PracticeDetail', { id: p.id });
     },
     onLongPress: () => {
       if (!selecting) {
@@ -293,7 +295,7 @@ export function PracticeScreen() {
                           onExclude={() => setExcludeIds([p.id])}
                           onComplete={() => {
                             completePractices([p.id]);
-                            setToast('완료로 옮겼어요');
+                            setToast('완료로 옮겼어요', true);
                           }}
                         />
                       ))}
@@ -360,15 +362,12 @@ export function PracticeScreen() {
         </View>
       )}
 
-      {toast && (
-        <View
-          pointerEvents="none"
-          accessibilityLiveRegion="polite"
-          style={[styles.toast, { bottom: (selecting ? insets.bottom + 80 : 16) }]}
-        >
-          <Text style={styles.toastText}>{toast}</Text>
-        </View>
-      )}
+      <UndoToast
+        toast={toast}
+        onHide={hideToast}
+        onUndone={() => setToast('되돌렸어요')}
+        bottom={selecting ? insets.bottom + 80 : 16}
+      />
 
       <SortSheet
         visible={sortOpen}
@@ -400,14 +399,15 @@ export function PracticeScreen() {
       />
 
       <ExcludeDialog
-        ids={excludeIds}
+        count={excludeIds?.length ?? 0}
+        visible={!!excludeIds}
         onCancel={() => setExcludeIds(null)}
         onConfirm={() => {
           if (!excludeIds) return;
           excludePractices(excludeIds);
           setExcludeIds(null);
           exitSelect();
-          setToast('실천에서 제외했어요');
+          setToast('참고함으로 옮겼어요', true);
         }}
       />
     </View>
@@ -490,8 +490,8 @@ function PracticeCard({
 
         {p.steps === null ? (
           <View style={styles.analyzing}>
-            <Sparkles size={13} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.analyzingText}>실천 방법을 정리하고 있어요</Text>
+            <AlertCircle size={13} color={colors.warn} strokeWidth={2} />
+            <Text style={[styles.analyzingText, { color: colors.warn }]}>실천 방법을 만들지 못했어요 · 눌러서 다시 분석</Text>
           </View>
         ) : (
           subtitle && (
@@ -680,34 +680,6 @@ function CategorySheet({
           </Pressable>
         </ScrollView>
         <Button label="변경하기" disabled={!selected} onPress={() => selected && onApply(selected)} style={{ marginTop: 14 }} />
-      </View>
-    </Modal>
-  );
-}
-
-/* ───────── 제외 확인 ───────── */
-
-function ExcludeDialog({ ids, onCancel, onConfirm }: { ids: string[] | null; onCancel: () => void; onConfirm: () => void }) {
-  const count = ids?.length ?? 0;
-  return (
-    <Modal visible={!!ids} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.dialogWrap}>
-        <View style={styles.dialog} accessibilityRole="alert">
-          <Text style={styles.dialogTitle}>{count > 1 ? `실천 ${count}개를 제외할까요?` : '이 실천을 제외할까요?'}</Text>
-          <Text style={styles.dialogBody}>{'AI 분석 내용이 모두 삭제되고\n실천함에서 사라져요.'}</Text>
-          <View style={styles.dialogInfo}>
-            <ImageIcon size={16} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.dialogInfoText}>원본 사진은 기기에 그대로 남아요</Text>
-          </View>
-          <View style={styles.dialogActions}>
-            <Pressable onPress={onCancel} accessibilityRole="button" style={[styles.dialogBtn, { backgroundColor: '#f1f0ec' }]}>
-              <Text style={[styles.dialogBtnText, { color: colors.text }]}>취소</Text>
-            </Pressable>
-            <Pressable onPress={onConfirm} accessibilityRole="button" style={[styles.dialogBtn, { backgroundColor: colors.error }]}>
-              <Text style={[styles.dialogBtnText, { color: '#fff' }]}>제외</Text>
-            </Pressable>
-          </View>
-        </View>
       </View>
     </Modal>
   );

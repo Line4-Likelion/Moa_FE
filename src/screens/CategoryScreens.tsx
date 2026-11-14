@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { FormField, Lines, OptionRow } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
-import { addCategory } from '../store/practices';
+import { addCategory, changeCategory, useCapture, useCategories } from '../store/practices';
 import { colors, fonts } from '../theme';
 
 function Actions({
@@ -28,6 +28,7 @@ function Actions({
 /** 11 / 11B 카테고리 추가 (입력 전 · 입력 완료) */
 export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'CategoryAdd'>) {
   const [name, setName] = useState('');
+  const [error, setError] = useState<string | undefined>();
   const canSave = name.trim().length > 0;
 
   return (
@@ -39,8 +40,8 @@ export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootSta
         <Actions
           onCancel={navigation.goBack}
           onSave={() => {
-            addCategory(name);
-            navigation.goBack();
+            if (addCategory(name)) navigation.goBack();
+            else setError('이미 있는 카테고리예요');
           }}
           saveDisabled={!canSave}
         />
@@ -51,7 +52,11 @@ export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootSta
         label="카테고리 이름"
         placeholder="카테고리 이름 입력"
         value={name}
-        onChangeText={setName}
+        onChangeText={(t) => {
+          setName(t);
+          setError(undefined);
+        }}
+        error={error}
         maxLength={20}
         returnKeyType="done"
       />
@@ -60,25 +65,37 @@ export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootSta
   );
 }
 
-const OPTIONS = ['패션', '맛집', '여행', '레시피', '정보', '미분류'];
-
 /** 12 카테고리 변경 */
 export function CategoryChangeScreen({
   navigation,
   route,
 }: NativeStackScreenProps<RootStackParamList, 'CategoryChange'>) {
-  const [selected, setSelected] = useState('맛집');
+  const categories = useCategories();
+  const ids = route.params.ids ?? [];
+  // 하나만 바꿀 때는 지금 카테고리를 선택된 상태로 보여줘요
+  const current = useCapture(ids[0] ?? '')?.category?.name;
+  const [selected, setSelected] = useState(ids.length === 1 && current ? current : '');
 
   return (
     <Screen
       title="카테고리 변경"
       onBack={navigation.goBack}
-      footer={<Actions onCancel={navigation.goBack} onSave={navigation.goBack} />}
+      footer={
+        <Actions
+          onCancel={navigation.goBack}
+          onSave={() => {
+            if (ids.length) changeCategory(ids, selected);
+            navigation.goBack();
+          }}
+          saveDisabled={!selected || (ids.length === 1 && selected === current)}
+        />
+      }
     >
       <Text style={styles.prompt}>{`${route.params.label}\n어디에 모아둘까요?`}</Text>
-      {OPTIONS.map((label) => (
+      {categories.map((label) => (
         <OptionRow key={label} label={label} selected={selected === label} onPress={() => setSelected(label)} />
       ))}
+      <OptionRow label="+ 새 카테고리" selected={false} onPress={() => navigation.navigate('CategoryAdd')} />
     </Screen>
   );
 }

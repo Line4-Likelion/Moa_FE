@@ -16,6 +16,9 @@ import { LoginScreen, SignupScreen } from './src/screens/AuthScreens';
 import { CategoryAddScreen, CategoryChangeScreen } from './src/screens/CategoryScreens';
 import { DevHomeScreen } from './src/screens/DevHomeScreen';
 import { PracticeScreen } from './src/screens/PracticeScreen';
+import { PracticeDetailScreen } from './src/screens/PracticeDetailScreen';
+import { OriginalViewScreen } from './src/screens/OriginalViewScreen';
+import { FactsEditScreen } from './src/screens/FactsEditScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SortScreen } from './src/screens/SortScreen';
 import { MyScreen } from './src/screens/MyScreen';
@@ -75,6 +78,9 @@ export default function App() {
           <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
           <Stack.Screen name="NotificationPermission" component={NotificationPermissionScreen} />
           <Stack.Screen name="DevIndex" component={DevHomeScreen} />
+          <Stack.Screen name="PracticeDetail" component={PracticeDetailScreen} />
+          <Stack.Screen name="OriginalView" component={OriginalViewScreen} options={{ animation: 'fade' }} />
+          <Stack.Screen name="FactsEdit" component={FactsEditScreen} />
           <Stack.Screen name="Sort" component={SortScreen} options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
         </Stack.Navigator>
       </NavigationContainer>
