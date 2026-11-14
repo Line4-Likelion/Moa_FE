@@ -5,6 +5,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Clock3, Sprout } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { LogoutSheet } from '../components/LogoutSheet';
+import { clearSession } from '../services/api';
 import { Screen } from '../components/Screen';
 import { Card, Caption, Divider, Lines, SettingItem, StatusChip } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
@@ -36,6 +37,7 @@ export function MyScreen({ route }: Props) {
         onCancel={() => setLogoutOpen(false)}
         onConfirm={() => {
           setLogoutOpen(false);
+          clearSession();
           navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
         }}
       />
