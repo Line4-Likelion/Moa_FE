@@ -50,14 +50,6 @@ export function DevHomeScreen() {
   );
 }
 
-export function PracticeScreen() {
-  return (
-    <Screen title="실천함" hasTabBar>
-      <Caption>준비 중이에요.</Caption>
-    </Screen>
-  );
-}
-
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12 },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },

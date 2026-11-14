@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { FormField, Lines, OptionRow } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
+import { addCategory } from '../store/practices';
 import { colors, fonts } from '../theme';
 
 function Actions({
@@ -34,7 +35,16 @@ export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootSta
       title="카테고리 추가"
       onBack={navigation.goBack}
       contentStyle={{ gap: 16 }}
-      footer={<Actions onCancel={navigation.goBack} onSave={navigation.goBack} saveDisabled={!canSave} />}
+      footer={
+        <Actions
+          onCancel={navigation.goBack}
+          onSave={() => {
+            addCategory(name);
+            navigation.goBack();
+          }}
+          saveDisabled={!canSave}
+        />
+      }
     >
       <Text style={styles.headline}>{'나에게 맞는\n이름으로 정리해요.'}</Text>
       <FormField
