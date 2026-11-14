@@ -305,6 +305,14 @@ export function PracticeScreen() {
                     <PracticeCard key={p.id} {...cardProps(p)} variant="normal" />
                   ))}
 
+                  {/* 진행은 비었고 보류만 남은 경우 */}
+                  {activeVisible.length === 0 && hold.length > 0 && (
+                    <View style={styles.inlineEmpty}>
+                      <Text style={styles.inlineEmptyTitle}>진행 중인 실천이 없어요</Text>
+                      <Text style={styles.inlineEmptyDesc}>보류한 실천을 다시 꺼내거나, 새 캡처를 분류해보세요</Text>
+                    </View>
+                  )}
+
                   {hold.length > 0 && (
                     <>
                       <Text style={styles.holdHead}>보류 {hold.length}</Text>
@@ -769,6 +777,9 @@ const styles = StyleSheet.create({
   sortText: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
 
   list: { paddingHorizontal: 20, gap: 10 },
+  inlineEmpty: { alignItems: 'center', gap: 4, paddingVertical: 28, borderRadius: radius.card, backgroundColor: colors.surface },
+  inlineEmptyTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  inlineEmptyDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
   noResults: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSub, textAlign: 'center', paddingVertical: 40 },
   overdueHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   overdueHeadText: { fontFamily: fonts.bold, fontSize: 13, color: colors.error },

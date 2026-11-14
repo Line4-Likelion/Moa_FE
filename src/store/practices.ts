@@ -157,9 +157,21 @@ const SEED: Practice[] = [
 
 /* ───────── 스토어 ───────── */
 
+/**
+ * 빈 화면 테스트용 스위치
+ * - 'full': 예시 데이터 전부
+ * - 'empty': 진행 · 완료 모두 비어 있음
+ * - 'holdOnly': 진행은 비고 보류만 있음
+ */
+type MockMode = 'full' | 'empty' | 'holdOnly';
+const MOCK_MODE = 'full' as MockMode;
+
+const INITIAL: Practice[] =
+  MOCK_MODE === 'empty' ? [] : MOCK_MODE === 'holdOnly' ? SEED.filter((p) => p.status === 'hold') : SEED;
+
 type State = { practices: Practice[]; customCategories: string[] };
 
-let state: State = { practices: SEED, customCategories: [] };
+let state: State = { practices: INITIAL, customCategories: [] };
 const listeners = new Set<() => void>();
 
 function setState(next: State) {
