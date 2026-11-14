@@ -305,6 +305,14 @@ export function PracticeScreen() {
                     <PracticeCard key={p.id} {...cardProps(p)} variant="normal" />
                   ))}
 
+                  {/* 진행은 비었고 보류만 남은 경우 */}
+                  {activeVisible.length === 0 && hold.length > 0 && (
+                    <View style={styles.inlineEmpty}>
+                      <Text style={styles.inlineEmptyTitle}>진행 중인 실천이 없어요</Text>
+                      <Text style={styles.inlineEmptyDesc}>보류한 실천을 다시 꺼내거나, 새 캡처를 분류해보세요</Text>
+                    </View>
+                  )}
+
                   {hold.length > 0 && (
                     <>
                       <Text style={styles.holdHead}>보류 {hold.length}</Text>
@@ -318,7 +326,7 @@ export function PracticeScreen() {
 
               {tab === 'done' && done.map((p) => <PracticeCard key={p.id} {...cardProps(p)} variant="done" />)}
 
-              {!noResults && <Text style={styles.footNote}>AI가 캡처를 보고 카테고리를 정해줬어요.</Text>}
+              {!noResults && <Text style={styles.footNote}>AI가 카테고리를 자동 분류했어요.</Text>}
             </View>
           </>
         )}
@@ -533,13 +541,13 @@ function EmptyState({ tab, onSort }: { tab: Tab; onSort: () => void }) {
       <View style={styles.emptyIcon}>
         <Sparkles size={30} color={colors.primary} strokeWidth={1.7} />
       </View>
-      <Text style={styles.emptyTitle}>{tab === 'active' ? '아직 모아둔 실천이 없어요' : '아직 완료한 실천이 없어요'}</Text>
+      <Text style={styles.emptyTitle}>{tab === 'active' ? '실천함이 비어 있어요' : '완료함이 비어 있어요'}</Text>
       <Text style={styles.emptyDesc}>
         {tab === 'active'
-          ? '캡처를 왼쪽으로 밀어 분류하면\n여기에 실천할 방법과 함께 모여요'
-          : '진행 중인 실천을 끝내면\n여기에 차곡차곡 쌓여요'}
+          ? '스크린샷을 분류해 채워보세요'
+          : '실천을 완료하면 여기 모여요'}
       </Text>
-      {tab === 'active' && <Button label="캡처 분류하러 가기" onPress={onSort} style={{ marginTop: 14, paddingHorizontal: 22 }} />}
+      {tab === 'active' && <Button label="스크린샷 분류하기" onPress={onSort} style={{ marginTop: 14, paddingHorizontal: 22 }} />}
     </View>
   );
 }
@@ -686,10 +694,10 @@ function ExcludeDialog({ ids, onCancel, onConfirm }: { ids: string[] | null; onC
       <View style={styles.dialogWrap}>
         <View style={styles.dialog} accessibilityRole="alert">
           <Text style={styles.dialogTitle}>{count > 1 ? `실천 ${count}개를 제외할까요?` : '이 실천을 제외할까요?'}</Text>
-          <Text style={styles.dialogBody}>{'AI가 정리한 실천 방법이 함께 사라지고\n실천함에서 빠져요.'}</Text>
+          <Text style={styles.dialogBody}>{'AI 분석 내용이 모두 삭제되고\n실천함에서 사라져요.'}</Text>
           <View style={styles.dialogInfo}>
             <ImageIcon size={16} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.dialogInfoText}>캡처 사진은 갤러리에 그대로 남아요</Text>
+            <Text style={styles.dialogInfoText}>원본 사진은 기기에 그대로 남아요</Text>
           </View>
           <View style={styles.dialogActions}>
             <Pressable onPress={onCancel} accessibilityRole="button" style={[styles.dialogBtn, { backgroundColor: '#f1f0ec' }]}>
@@ -769,6 +777,9 @@ const styles = StyleSheet.create({
   sortText: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
 
   list: { paddingHorizontal: 20, gap: 10 },
+  inlineEmpty: { alignItems: 'center', gap: 4, paddingVertical: 28, borderRadius: radius.card, backgroundColor: colors.surface },
+  inlineEmptyTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  inlineEmptyDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
   noResults: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSub, textAlign: 'center', paddingVertical: 40 },
   overdueHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   overdueHeadText: { fontFamily: fonts.bold, fontSize: 13, color: colors.error },

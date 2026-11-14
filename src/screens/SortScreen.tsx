@@ -359,7 +359,7 @@ function Deck({
               {previousDecision && (
                 <View style={[styles.decidedChip, { backgroundColor: DECISION_STYLE[previousDecision].color }]}>
                   <Check size={12} color="#fff" strokeWidth={3} />
-                  <Text style={styles.decidedChipText}>{DECISION_STYLE[previousDecision].label}으로 분류함</Text>
+                  <Text style={styles.decidedChipText}>{DECISION_STYLE[previousDecision].label}</Text>
                 </View>
               )}
             </CardImage>
