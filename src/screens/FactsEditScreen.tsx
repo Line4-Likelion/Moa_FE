@@ -7,7 +7,7 @@ import { DateSheet } from '../components/DateSheet';
 import { Screen } from '../components/Screen';
 import { FormField } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
-import { dayKey, parseDay, updateFacts, updateLink, useCapture } from '../store/practices';
+import { dayKey, parseDay, revertFact, updateFacts, useCapture } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FactsEdit'>;
@@ -22,8 +22,8 @@ export function FactsEditScreen({ navigation, route }: Props) {
     Object.fromEntries((capture?.facts ?? []).map((f) => [f.key, f.value ?? ''])),
   );
   const [deadline, setDeadline] = useState<string | null>(capture?.deadline.date ?? null);
-  const [link, setLink] = useState(capture?.links[0]?.url ?? '');
   const [dateOpen, setDateOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!capture) {
     return (
@@ -37,13 +37,12 @@ export function FactsEditScreen({ navigation, route }: Props) {
   const changedFacts = Object.fromEntries(
     Object.entries(values).filter(([k, v]) => v !== (capture.facts.find((f) => f.key === k)?.value ?? '')),
   );
-  const linkChanged = link !== (capture.links[0]?.url ?? '');
-  const dirty = deadlineChanged || Object.keys(changedFacts).length > 0 || linkChanged;
+  const dirty = deadlineChanged || Object.keys(changedFacts).length > 0;
 
   const save = () => {
-    updateFacts(capture.id, changedFacts, deadlineChanged ? deadline : undefined);
-    if (linkChanged) updateLink(capture.id, link);
-    navigation.goBack();
+    if (updateFacts(capture.id, changedFacts, deadlineChanged ? deadline : undefined)) navigation.goBack();
+    // 실패하면 입력은 그대로 두고 안내 (명세서: 저장 실패 시 기존 상태 유지)
+    else setSaveError('저장하지 못했어요. 다시 시도해주세요.');
   };
 
   const deadlineLabel = deadline
@@ -81,24 +80,31 @@ export function FactsEditScreen({ navigation, route }: Props) {
       </View>
 
       {capture.facts.map((f) => (
-        <FormField
-          key={f.key}
-          label={f.label}
-          value={values[f.key] ?? ''}
-          onChangeText={(t) => setValues((v) => ({ ...v, [f.key]: t }))}
-          placeholder="직접 확인 필요"
-          hint={f.value === null ? '원본에서 찾지 못한 정보예요' : undefined}
-        />
+        <View key={f.key} style={{ gap: 4 }}>
+          <FormField
+            label={f.label}
+            value={values[f.key] ?? ''}
+            onChangeText={(t) => setValues((v) => ({ ...v, [f.key]: t }))}
+            placeholder="직접 확인 필요"
+            hint={f.value === null && !f.edited ? '원본에서 찾지 못한 정보예요' : undefined}
+          />
+          {f.edited && (
+            <Pressable
+              onPress={() => {
+                if (revertFact(capture.id, f.key)) navigation.goBack();
+                else setSaveError('되돌리지 못했어요. 다시 시도해주세요.');
+              }}
+              accessibilityRole="button"
+              hitSlop={6}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              <Text style={styles.revert}>직접 고친 값이에요 · AI가 읽은 값으로 되돌리기</Text>
+            </Pressable>
+          )}
+        </View>
       ))}
 
-      <FormField
-        label="링크"
-        value={link}
-        onChangeText={setLink}
-        placeholder="https://"
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+      {saveError && <Text style={styles.error}>{saveError}</Text>}
 
       <View style={styles.note}>
         <Text style={styles.noteTitle}>원본은 수정되지 않아요</Text>
@@ -138,6 +144,8 @@ const styles = StyleSheet.create({
   },
   dateText: { fontFamily: fonts.regular, fontSize: 15, color: colors.text },
   hint: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
+  error: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
+  revert: { fontFamily: fonts.medium, fontSize: 12, color: colors.primary, textDecorationLine: 'underline' },
   note: { backgroundColor: colors.tint, borderRadius: radius.card, padding: 14, gap: 4 },
   noteTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.primary },
   noteDesc: { fontFamily: fonts.regular, fontSize: 12, color: '#4f5a52' },

@@ -12,13 +12,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TabBar } from './src/components/TabBar';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { ArchiveScreen } from './src/screens/ArchiveScreen';
-import { LoginScreen, SignupScreen } from './src/screens/AuthScreens';
+import { LoginScreen, SignupScreen, SignupTermsScreen } from './src/screens/AuthScreens';
 import { CategoryAddScreen, CategoryChangeScreen } from './src/screens/CategoryScreens';
 import { DevHomeScreen } from './src/screens/DevHomeScreen';
 import { PracticeScreen } from './src/screens/PracticeScreen';
 import { PracticeDetailScreen } from './src/screens/PracticeDetailScreen';
 import { OriginalViewScreen } from './src/screens/OriginalViewScreen';
 import { FactsEditScreen } from './src/screens/FactsEditScreen';
+import { OnboardingPhotoScreen, OnboardingRangeScreen, OnboardingResultScreen } from './src/screens/OnboardingScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SortScreen } from './src/screens/SortScreen';
 import { MyScreen } from './src/screens/MyScreen';
@@ -68,6 +69,7 @@ export default function App() {
           screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
         >
           <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="SignupTerms" component={SignupTermsScreen} />
           <Stack.Screen name="Signup" component={SignupScreen} />
           <Stack.Screen name="Tabs" component={Tabs} />
           <Stack.Screen name="CategoryAdd" component={CategoryAddScreen} />
@@ -81,6 +83,9 @@ export default function App() {
           <Stack.Screen name="PracticeDetail" component={PracticeDetailScreen} />
           <Stack.Screen name="OriginalView" component={OriginalViewScreen} options={{ animation: 'fade' }} />
           <Stack.Screen name="FactsEdit" component={FactsEditScreen} />
+          <Stack.Screen name="OnboardingPhoto" component={OnboardingPhotoScreen} />
+          <Stack.Screen name="OnboardingRange" component={OnboardingRangeScreen} />
+          <Stack.Screen name="OnboardingResult" component={OnboardingResultScreen} options={{ gestureEnabled: false }} />
           <Stack.Screen name="Sort" component={SortScreen} options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
         </Stack.Navigator>
       </NavigationContainer>

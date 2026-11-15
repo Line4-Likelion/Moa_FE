@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { MOCK_FAIL } from '../mock/failures';
 
 /* ═════════ API 명세서와 같은 모양의 데이터 (Capture 객체) ═════════
  * 서버 연동 시 이 타입 그대로 응답을 받아 넣으면 돼요.
@@ -45,6 +46,17 @@ export type Capture = {
   status_changed_at: string;
   /** 앱 전용: 기기에서 불러온 사진 주소 (서버 필드 아님) */
   uri?: string;
+  /** 앱 전용: 분석 중일 때 진행 단계 (GET /analysis-jobs 의 step) */
+  job_step?: AnalysisStep;
+};
+
+/** 분석 단계 (GET /analysis-jobs 의 step) */
+export type AnalysisStep = 'OCR' | 'DEADLINE' | 'CATEGORIZE' | 'GUIDE';
+export const ANALYSIS_STEP_LABEL: Record<AnalysisStep, string> = {
+  OCR: '원문 정보 확인',
+  DEADLINE: '마감기한 판단',
+  CATEGORIZE: '카테고리 정리',
+  GUIDE: '실천 가이드 만들기',
 };
 
 /* ═════════ 카테고리 ═════════ */
@@ -123,7 +135,7 @@ const fact = (key: string, label: string, value: string | null, box: Box | null 
 const checklist = (id: string, texts: string[], done: number): ChecklistItem[] =>
   texts.map((text, i) => ({ id: `chk_${id}_${i + 1}`, text, checked: i < done }));
 
-function capture(partial: Partial<Capture> & Pick<Capture, 'id' | 'title'>): Capture {
+function capture(partial: Partial<Capture> & Pick<Capture, 'id'> & { title: string | null }): Capture {
   return {
     file_key: `media:${partial.id}|Screenshot.jpg`,
     status: 'TODO',
@@ -242,6 +254,21 @@ const SEED: Capture[] = [
     next_alarm_at: at9(dayOffset(5)),
     created_at: isoDaysAgo(8),
   }),
+  // 홈 '분석 중 · 실패' 영역용 (명세서: 분석 중·실패 항목은 홈에만 보여요)
+  capture({
+    id: 'cap_analyzing',
+    title: null,
+    status: 'ANALYZING',
+    job_step: 'DEADLINE',
+    created_at: isoDaysAgo(0),
+  }),
+  capture({
+    id: 'cap_failed',
+    title: null,
+    status: 'FAILED',
+    error: { code: 'ANALYSIS_FAILED', message: '사진을 끝까지 분석하지 못했어요' },
+    created_at: isoDaysAgo(0),
+  }),
   capture({
     id: 'cap_cafe',
     title: '성신여대 카페 찾기',
@@ -280,6 +307,11 @@ const INITIAL: Capture[] =
 
 type State = { captures: Capture[]; customCategories: Category[] };
 
+/** 서버가 보관하는 AI 원래 값 (facts 를 value: null 로 PATCH 하면 이 값으로 되돌아가요). 목업용 */
+const aiOriginal = new Map<string, string | null>(
+  INITIAL.flatMap((c) => c.facts.map((f) => [`${c.id}:${f.key}`, f.value] as [string, string | null])),
+);
+
 let state: State = { captures: INITIAL, customCategories: [] };
 const listeners = new Set<() => void>();
 
@@ -309,6 +341,9 @@ function patch(ids: string[], fn: (c: Capture) => Capture, undoable = false) {
 }
 const now = () => new Date().toISOString();
 
+/** 저장 실패 흉내 (목업). 실제로는 서버 응답이 실패면 false — 화면은 이전 상태를 그대로 둬요 */
+const saveFails = () => MOCK_FAIL.actionSave;
+
 /* ───────── 읽기 ───────── */
 
 export function useCaptures() {
@@ -328,7 +363,10 @@ export function useCategories() {
 
 /* ───────── 실천함 목록용 요약 (명세서 목록 API 요약형에 해당) ───────── */
 
-export type PracticeStep = { title: string; done: boolean };
+/**
+ * 실천함 목록 한 줄 (명세서 GET /captures 의 '요약형'에 해당)
+ * 요약형에는 facts · guide · checklist 가 없고 checklist_progress 만 와요.
+ */
 export type Practice = {
   id: string;
   title: string;
@@ -340,8 +378,16 @@ export type Practice = {
   addedAt: string;
   completedAt: string | null;
   status: 'active' | 'hold' | 'done';
-  /** 실천 방법을 못 만들었으면 null */
-  steps: PracticeStep[] | null;
+  summary: string | null;
+  /** checklist_progress */
+  progress: { done: number; total: number };
+  /**
+   * 다음에 할 단계 이름
+   * TODO(백엔드 확인): 요약형에 next_step 필드 추가 요청. 오기 전까지는 summary 를 대신 보여줘요
+   */
+  nextStep: string | null;
+  /** 실천 방법을 못 만듦 (체크리스트 0개) */
+  guideMissing: boolean;
   snoozeUntil: string | null;
 };
 
@@ -355,7 +401,11 @@ function toPractice(c: Capture): Practice {
     addedAt: c.created_at,
     completedAt: c.status === 'DONE' ? c.status_changed_at : null,
     status: c.status === 'DONE' ? 'done' : isSnoozed(c) ? 'hold' : 'active',
-    steps: c.guide === null && c.checklist.length === 0 ? null : c.checklist.map((i) => ({ title: i.text, done: i.checked })),
+    summary: c.summary,
+    progress: { done: c.checklist.filter((i) => i.checked).length, total: c.checklist.length },
+    // 목업에서는 체크리스트가 있어서 계산할 수 있지만, 실제 목록 API에는 아직 없어요
+    nextStep: c.checklist.find((i) => !i.checked)?.text ?? null,
+    guideMissing: c.guide === null && c.checklist.length === 0,
     snoozeUntil: c.snooze_until,
   };
 }
@@ -387,6 +437,7 @@ export function isOverdue(p: Practice) {
 
 /** 완료 (COMPLETE). 체크리스트도 모두 체크된 상태로 보여줘요 */
 export function completePractices(ids: string[]) {
+  if (saveFails()) return false;
   patch(
     ids,
     (c) => ({
@@ -399,11 +450,14 @@ export function completePractices(ids: string[]) {
     }),
     true,
   );
+  return true;
 }
 
 /** 보류 (SNOOZE). 날짜를 안 주면 다음 주 같은 요일 */
 export function snoozeCaptures(ids: string[], until: string = nextWeekSameDay()) {
+  if (saveFails()) return false;
   patch(ids, (c) => ({ ...c, snooze_until: until, next_alarm_at: at9(until) }), true);
+  return true;
 }
 
 /** 보류 풀기: 지금 다시 하기 */
@@ -411,8 +465,9 @@ export function resumeCaptures(ids: string[]) {
   patch(ids, (c) => ({ ...c, snooze_until: null }));
 }
 
-/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 참고함으로 옮겨요 */
+/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 보관함(참고)으로 옮겨요 */
 export function excludePractices(ids: string[]) {
+  if (saveFails()) return false;
   patch(
     ids,
     (c) => ({
@@ -432,6 +487,7 @@ export function excludePractices(ids: string[]) {
     }),
     true,
   );
+  return true;
 }
 
 /** 되돌리기 (UNDO). 5초가 지났으면 false */
@@ -445,11 +501,13 @@ export function undoLast() {
 
 /**
  * 체크리스트 체크 (PATCH /captures/{id}/checklist/{item_id})
- * 모두 체크되면 자동으로 완료해요. 완료됐으면 true
+ * 모두 체크되면 자동으로 완료해요
  */
-export function toggleChecklist(id: string, itemId: string) {
+export function toggleChecklist(id: string, itemId: string): 'toggled' | 'completed' | 'failed' {
+  // 실패하면 이전 체크 상태 그대로 (명세서)
+  if (saveFails()) return 'failed';
   const target = state.captures.find((c) => c.id === id);
-  if (!target) return false;
+  if (!target) return 'failed';
   const checklistNext = target.checklist.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i));
   const allDone = checklistNext.length > 0 && checklistNext.every((i) => i.checked);
   if (allDone && target.status === 'TODO') {
@@ -458,22 +516,25 @@ export function toggleChecklist(id: string, itemId: string) {
       (c) => ({ ...c, checklist: checklistNext, status: 'DONE', status_changed_at: now(), next_alarm_at: null, snooze_until: null }),
       true,
     );
-    return true;
+    return 'completed';
   }
   patch([id], (c) => ({ ...c, checklist: checklistNext }));
-  return false;
+  return 'toggled';
 }
 
 /** 카테고리 변경 (PATCH /captures/{id}/category) */
 export function changeCategory(ids: string[], categoryName: string) {
+  if (saveFails()) return false;
   const all = [...BASE, ...state.customCategories, ETC];
   const next = all.find((c) => c.name === categoryName);
-  if (!next) return;
+  if (!next) return false;
   patch(ids, (c) => ({ ...c, category: next, category_source: 'USER' }));
+  return true;
 }
 
 /** 추출 정보 수정 (PATCH /captures/{id}/facts). deadline 을 넘기면 마감도 바꿔요 (null = 마감 없음) */
 export function updateFacts(id: string, values: Record<string, string>, deadline?: string | null) {
+  if (saveFails()) return false;
   patch([id], (c) => {
     const facts = c.facts.map((f) =>
       f.key in values ? { ...f, value: values[f.key].trim() || null, edited: true } : f,
@@ -486,16 +547,17 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
     }
     return { ...c, facts, deadline: nextDeadline };
   });
+  return true;
 }
 
-/** 링크 수정 */
-export function updateLink(id: string, url: string) {
-  patch([id], (c) => {
-    const trimmed = url.trim();
-    if (!trimmed) return { ...c, links: [] };
-    const first = c.links[0] ?? { type: 'WEB', label: '원문 링크 열기', url: '' };
-    return { ...c, links: [{ ...first, url: trimmed }, ...c.links.slice(1)] };
-  });
+/** AI가 읽은 값으로 되돌리기 (PATCH /captures/{id}/facts 에 value: null) */
+export function revertFact(id: string, key: string) {
+  if (saveFails()) return false;
+  patch([id], (c) => ({
+    ...c,
+    facts: c.facts.map((f) => (f.key === key ? { ...f, value: aiOriginal.get(`${id}:${key}`) ?? null, edited: false } : f)),
+  }));
+  return true;
 }
 
 /**
@@ -504,6 +566,7 @@ export function updateLink(id: string, url: string) {
  * 지금은 팀 결정대로 완료 기록은 두고 복제해서 진행에 새로 담아요.
  */
 export function redoPractices(ids: string[]) {
+  if (saveFails()) return null;
   const set = new Set(ids);
   const stamp = Date.now();
   const copies = state.captures
@@ -523,18 +586,35 @@ export function redoPractices(ids: string[]) {
   return copies.map((c) => c.id);
 }
 
-/** 다시 분석 (POST /captures/{id}/analysis). 목업이라 잠깐 뒤 기본 가이드를 채워요 */
-export function reanalyze(id: string) {
-  patch([id], (c) => ({ ...c, status: 'ANALYZING' }));
+/**
+ * 다시 분석 (POST /captures/{id}/analysis → GET /analysis-jobs 로 진행 확인)
+ * 목업이라 단계를 0.8초씩 넘기고 기본 가이드를 채워요. 실패 테스트는 fail = true
+ */
+export function reanalyze(id: string, fail = false) {
+  const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
+  patch([id], (c) => ({ ...c, status: 'ANALYZING', error: null, job_step: 'OCR' }));
+  steps.forEach((step, i) => {
+    setTimeout(() => patch([id], (c) => ({ ...c, job_step: step })), i * 800);
+  });
   setTimeout(() => {
+    if (fail) {
+      patch([id], (c) => ({
+        ...c,
+        status: 'FAILED',
+        job_step: undefined,
+        error: { code: 'ANALYSIS_TIMEOUT', message: '요청은 접수됐지만 분석이 중단됐어요' },
+      }));
+      return;
+    }
     patch([id], (c) => ({
       ...c,
       status: 'TODO',
+      job_step: undefined,
       summary: c.summary ?? '원본 내용을 다시 정리했어요',
       guide: { title: '실천 가이드', lines: ['원본을 다시 확인하고 필요한 일을 정리해요.'], preparations: [] },
       checklist: checklist(c.id, ['원본 내용 확인하기', '실천하기'], 0),
     }));
-  }, 1500);
+  }, steps.length * 800);
 }
 
 /** 카테고리 추가 (POST /categories). 이미 있으면 false */
@@ -548,4 +628,145 @@ export function addCategory(name: string) {
     customCategories: [...state.customCategories, { id: `cat_custom_${Date.now()}`, name: trimmed, is_custom: true }],
   });
   return true;
+}
+
+/* ───────── 완료율 (명세서 GET /stats/completion) ───────── */
+
+export type CompletionStats = {
+  done_count: number;
+  todo_count: number;
+  /** 완료 ÷ (완료 + 실천 대기). 실천 대상이 없으면 null */
+  rate: number | null;
+  /** 최근 6주, 완료함 그래프용 */
+  weekly: { week_start: string; rate: number | null }[];
+};
+
+let statsCache: { from: Capture[]; stats: CompletionStats } | null = null;
+function selectStats(): CompletionStats {
+  if (statsCache?.from === state.captures) return statsCache.stats;
+  const list = state.captures.filter((c) => c.status === 'TODO' || c.status === 'DONE');
+  const done = list.filter((c) => c.status === 'DONE');
+  const total = list.length;
+
+  // 이번 주 월요일
+  const monday = todayStart();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const weekly = Array.from({ length: 6 }, (_, i) => {
+    const start = new Date(monday);
+    start.setDate(start.getDate() - (5 - i) * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    // 그 주가 끝날 때까지 담긴 것 중 완료한 비율 (목업 계산)
+    const added = list.filter((c) => new Date(c.created_at) < end);
+    const doneBy = added.filter((c) => c.status === 'DONE' && new Date(c.status_changed_at) < end);
+    return { week_start: dayKey(start), rate: added.length ? doneBy.length / added.length : null };
+  });
+
+  statsCache = {
+    from: state.captures,
+    stats: { done_count: done.length, todo_count: total - done.length, rate: total ? done.length / total : null, weekly },
+  };
+  return statsCache.stats;
+}
+export function useCompletionStats() {
+  return useSyncExternalStore(subscribe, selectStats);
+}
+
+/* ───────── 분류 (명세서 POST /captures/classify, PATCH /captures/{id}/sort) ───────── */
+
+/** 목업 분석 결과 (서버 연결 전 예시). 차례대로 돌려 써요 */
+const MOCK_RESULTS: { title: string; summary: string; category: string; steps: string[]; deadlineIn: number | null }[] = [
+  { title: '홍대 파티룸 예약', summary: '연말 모임 장소 잡기', category: '여행', steps: ['날짜 정하기', '인원 확인하기', '예약하기'], deadlineIn: 6 },
+  { title: '토익 스피킹 접수', summary: '12월 정기시험', category: '공부', steps: ['시험 날짜 고르기', '접수하기'], deadlineIn: 3 },
+  { title: '을지로 카페 가보기', summary: '조용한 작업 카페', category: '카페', steps: ['위치 확인하기', '방문하기'], deadlineIn: null },
+  { title: '겨울 코트 사기', summary: '블랙프라이데이 할인', category: '쇼핑', steps: ['사이즈 비교하기', '주문하기'], deadlineIn: 4 },
+];
+let mockResultIndex = 0;
+
+/**
+ * 스와이프로 분류 (좌 ACT / 우 REF). 만든 캡처 id 를 돌려줘요
+ * ACT 는 바로 이미지 업로드 → 분석 (needs_upload: true)
+ */
+export function classifyShot(shot: { id: string; capturedAt: string; uri?: string }, sort: 'ACT' | 'REF') {
+  // 저장 실패 (500): 화면은 선택을 그대로 두고 재시도를 안내해요
+  if (MOCK_FAIL.classifySave) throw new Error('분류를 저장하지 못했어요');
+  const id = `cap_${shot.id}_${Date.now()}`;
+  const base = capture({
+    id,
+    title: null,
+    file_key: `media:${shot.id}|Screenshot.jpg`,
+    uri: shot.uri,
+    status: sort === 'ACT' ? 'ANALYZING' : 'REFERENCE',
+    category: null,
+    job_step: sort === 'ACT' ? 'OCR' : undefined,
+    created_at: now(),
+    status_changed_at: now(),
+  });
+  commit([base, ...state.captures]);
+  if (sort === 'ACT') {
+    // 분석 한도 초과 (429): 분류는 저장됐지만 분석은 못 해서 홈에 '실패'로 보여요
+    if (MOCK_FAIL.analysisLimit) {
+      patch([id], (c) => ({
+        ...c,
+        status: 'FAILED',
+        job_step: undefined,
+        error: { code: 'RATE_LIMITED', message: '오늘 분석할 수 있는 장수를 다 썼어요' },
+      }));
+    } else runMockAnalysis(id);
+  }
+  return id;
+}
+
+/** 분류 바꾸기 · 취소 (PATCH /captures/{id}/sort). NONE 이면 서버 기록 삭제 → 다시 미분류 */
+export function changeSort(captureId: string, sort: 'ACT' | 'REF' | 'NONE') {
+  if (sort === 'NONE') {
+    commit(state.captures.filter((c) => c.id !== captureId));
+    return;
+  }
+  if (sort === 'REF') {
+    patch([captureId], (c) => ({
+      ...c,
+      status: 'REFERENCE',
+      job_step: undefined,
+      title: null,
+      summary: null,
+      category: null,
+      facts: [],
+      guide: null,
+      checklist: [],
+      deadline: { status: 'NONE', date: null, label: null, box: null },
+      next_alarm_at: null,
+    }));
+    return;
+  }
+  patch([captureId], (c) => ({ ...c, status: 'ANALYZING', job_step: 'OCR' }));
+  runMockAnalysis(captureId);
+}
+
+/** 목업 분석: 단계를 넘기다가 예시 결과를 채워요 */
+function runMockAnalysis(id: string) {
+  const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
+  steps.forEach((step, i) => setTimeout(() => patch([id], (c) => (c.status === 'ANALYZING' ? { ...c, job_step: step } : c)), i * 900));
+  setTimeout(() => {
+    const r = MOCK_RESULTS[mockResultIndex++ % MOCK_RESULTS.length];
+    patch([id], (c) =>
+      c.status !== 'ANALYZING'
+        ? c
+        : {
+            ...c,
+            status: 'TODO',
+            job_step: undefined,
+            title: r.title,
+            summary: r.summary,
+            category: cat(r.category),
+            deadline:
+              r.deadlineIn === null
+                ? { status: 'NONE', date: null, label: null, box: null }
+                : { status: 'FOUND', date: dayOffset(r.deadlineIn), label: '마감', box: null },
+            guide: { title: '실천 가이드', lines: ['원본 내용을 보고 필요한 일을 정리했어요.'], preparations: [] },
+            checklist: checklist(id, r.steps, 0),
+            next_alarm_at: r.deadlineIn === null ? null : at9(dayOffset(Math.max(r.deadlineIn - 1, 0))),
+          },
+    );
+  }, steps.length * 900);
 }

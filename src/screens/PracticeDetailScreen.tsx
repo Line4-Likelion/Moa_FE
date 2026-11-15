@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,9 +30,10 @@ import {
   isSnoozed,
   nextWeekSameDay,
   parseDay,
+  ANALYSIS_STEP_LABEL,
   reanalyze,
+  type AnalysisStep,
   redoPractices,
-  resumeCaptures,
   snoozeCaptures,
   toggleChecklist,
   updateFacts,
@@ -40,10 +41,12 @@ import {
   type Capture,
 } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
+import { MOCK_FAIL } from '../mock/failures';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PracticeDetail'>;
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const ANALYSIS_STEPS: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
 const md = (key: string) => {
   const d = parseDay(key);
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
@@ -83,6 +86,10 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
   const [factsOpen, setFactsOpen] = useState(false);
 
   const show = (text: string, undo = false) => setToast({ text, undo, key: Date.now() });
+  /** 저장 실패: 이전 상태 그대로 두고 재시도 안내 (명세서) */
+  const failed = (retry: () => void) =>
+    setToast({ text: '저장하지 못했어요', key: Date.now(), action: { label: '다시 시도', onPress: retry } });
+  const [reloadKey, setReloadKey] = useState(0);
   const hideToast = useCallback(() => setToast(null), []);
 
   const header = (
@@ -101,7 +108,26 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
     </View>
   );
 
-  /* 항목이 없거나 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
+  // 알림으로 들어왔는데 항목을 찾을 수 없으면 실천 목록으로 이동 (명세서: 푸시 딥링크 예외처리)
+  useEffect(() => {
+    if (!capture) navigation.navigate('Tabs', { screen: 'Practice' });
+  }, [capture, navigation]);
+
+  /* 상세를 못 불러옴 (GET /captures/{id} 실패) */
+  if (MOCK_FAIL.detailLoad && reloadKey >= 0) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        {header}
+        <View style={styles.gone}>
+          <Text style={styles.goneTitle}>실천을 불러오지 못했어요</Text>
+          <Text style={styles.goneDesc}>잠시 후 다시 시도해주세요</Text>
+          <Button label="다시 시도" variant="secondary" onPress={() => setReloadKey((k) => k + 1)} style={{ marginTop: 16, paddingHorizontal: 24 }} />
+        </View>
+      </View>
+    );
+  }
+
+  /* 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
   if (!capture || capture.status === 'REFERENCE') {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -151,7 +177,9 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
   const warnCount = factRows.filter((f) => f.value === null).length;
 
   const onToggle = (itemId: string) => {
-    if (toggleChecklist(c.id, itemId)) show('모든 단계를 끝내서 완료로 옮겼어요', true);
+    const r = toggleChecklist(c.id, itemId);
+    if (r === 'completed') show('모든 단계를 끝내서 완료로 옮겼어요', true);
+    else if (r === 'failed') failed(() => onToggle(itemId));
   };
 
   return (
@@ -191,7 +219,6 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           <Banner
             tone="sub"
             icon={<PauseCircle size={16} color={colors.textSub} strokeWidth={2} />}
-            action={{ label: '지금 다시 하기', onPress: () => (resumeCaptures([c.id]), show('진행으로 다시 꺼냈어요')) }}
           >
             {`${md(c.snooze_until!)}에 다시 알려드릴게요`}
           </Banner>
@@ -294,7 +321,23 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           {analyzing ? (
             <View style={styles.noGuide}>
               <RefreshCw size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.noGuideTitle}>실천 방법을 다시 정리하고 있어요</Text>
+              <Text style={styles.noGuideTitle}>실천 방법을 정리하고 있어요</Text>
+              {c.job_step && (
+                <Text style={styles.noGuideDesc}>
+                  {ANALYSIS_STEPS.indexOf(c.job_step) + 1} / {ANALYSIS_STEPS.length} · {ANALYSIS_STEP_LABEL[c.job_step]}
+                </Text>
+              )}
+            </View>
+          ) : c.status === 'FAILED' ? (
+            <View style={styles.noGuide}>
+              <Text style={styles.noGuideTitle}>사진을 끝까지 분석하지 못했어요</Text>
+              <Text style={styles.noGuideDesc}>{c.error?.message ?? '잠시 후 다시 시도해주세요'}</Text>
+              <Button
+                label="다시 분석"
+                variant="secondary"
+                onPress={() => reanalyze(c.id)}
+                style={{ marginTop: 8, alignSelf: 'stretch' }}
+              />
             </View>
           ) : noGuide ? (
             <View style={styles.noGuide}>
@@ -380,8 +423,9 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
             <Button
               label="다시 하기"
               onPress={() => {
-                const [newId] = redoPractices([c.id]);
-                if (newId) navigation.replace('PracticeDetail', { id: newId });
+                const ids = redoPractices([c.id]);
+                if (!ids) return failed(() => {});
+                navigation.replace('PracticeDetail', { id: ids[0] });
               }}
               style={{ flex: 1 }}
             />
@@ -403,10 +447,13 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
               <Button
                 label="완료"
                 onPress={() => {
-                  completePractices([c.id]);
-                  show('완료로 표시했어요', true);
+                  const done = () => {
+                    if (completePractices([c.id])) show('완료로 표시했어요', true);
+                    else failed(done);
+                  };
+                  done();
                 }}
-                style={{ flex: 1.6 }}
+                style={{ flex: 1 }}
               />
             </>
           )}
@@ -455,8 +502,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onCancel={() => setSnoozeOpen(false)}
         onConfirm={(value) => {
           setSnoozeOpen(false);
-          snoozeCaptures([c.id], value ?? undefined);
-          show(`${md(value ?? nextWeekSameDay())}에 다시 알려드릴게요`, true);
+          const save = () => {
+            if (snoozeCaptures([c.id], value ?? undefined)) show(`${md(value ?? nextWeekSameDay())}에 다시 알려드릴게요`, true);
+            else failed(save);
+          };
+          save();
         }}
       />
 
@@ -472,8 +522,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onCancel={() => setDeadlineOpen(false)}
         onConfirm={(value) => {
           setDeadlineOpen(false);
-          updateFacts(c.id, {}, value);
-          show(value ? `마감을 ${md(value)}로 바꿨어요` : '마감 없음으로 바꿨어요');
+          const save = () => {
+            if (updateFacts(c.id, {}, value)) show(value ? `마감을 ${md(value)}로 바꿨어요` : '마감 없음으로 바꿨어요');
+            else failed(save);
+          };
+          save();
         }}
       />
 
@@ -483,8 +536,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onCancel={() => setExcludeOpen(false)}
         onConfirm={() => {
           setExcludeOpen(false);
-          excludePractices([c.id]);
-          show('보관함으로 옮겼어요', true);
+          const save = () => {
+            if (excludePractices([c.id])) show('보관함으로 옮겼어요', true);
+            else failed(save);
+          };
+          save();
         }}
       />
     </View>
@@ -638,12 +694,13 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: radius.button,
     borderWidth: 1,
-    borderColor: '#e8d3cc',
+    borderColor: colors.border,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
   },
-  excludeBtnText: { fontFamily: fonts.bold, fontSize: 15, color: colors.error },
+  excludeBtnText: { fontFamily: fonts.bold, fontSize: 14, color: colors.error },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
   sectionRight: { fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
