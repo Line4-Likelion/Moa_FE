@@ -328,7 +328,10 @@ export function useCategories() {
 
 /* ───────── 실천함 목록용 요약 (명세서 목록 API 요약형에 해당) ───────── */
 
-export type PracticeStep = { title: string; done: boolean };
+/**
+ * 실천함 목록 한 줄 (명세서 GET /captures 의 '요약형'에 해당)
+ * 요약형에는 facts · guide · checklist 가 없고 checklist_progress 만 와요.
+ */
 export type Practice = {
   id: string;
   title: string;
@@ -340,8 +343,16 @@ export type Practice = {
   addedAt: string;
   completedAt: string | null;
   status: 'active' | 'hold' | 'done';
-  /** 실천 방법을 못 만들었으면 null */
-  steps: PracticeStep[] | null;
+  summary: string | null;
+  /** checklist_progress */
+  progress: { done: number; total: number };
+  /**
+   * 다음에 할 단계 이름
+   * TODO(백엔드 확인): 요약형에 next_step 필드 추가 요청. 오기 전까지는 summary 를 대신 보여줘요
+   */
+  nextStep: string | null;
+  /** 실천 방법을 못 만듦 (체크리스트 0개) */
+  guideMissing: boolean;
   snoozeUntil: string | null;
 };
 
@@ -355,7 +366,11 @@ function toPractice(c: Capture): Practice {
     addedAt: c.created_at,
     completedAt: c.status === 'DONE' ? c.status_changed_at : null,
     status: c.status === 'DONE' ? 'done' : isSnoozed(c) ? 'hold' : 'active',
-    steps: c.guide === null && c.checklist.length === 0 ? null : c.checklist.map((i) => ({ title: i.text, done: i.checked })),
+    summary: c.summary,
+    progress: { done: c.checklist.filter((i) => i.checked).length, total: c.checklist.length },
+    // 목업에서는 체크리스트가 있어서 계산할 수 있지만, 실제 목록 API에는 아직 없어요
+    nextStep: c.checklist.find((i) => !i.checked)?.text ?? null,
+    guideMissing: c.guide === null && c.checklist.length === 0,
     snoozeUntil: c.snooze_until,
   };
 }
@@ -411,7 +426,7 @@ export function resumeCaptures(ids: string[]) {
   patch(ids, (c) => ({ ...c, snooze_until: null }));
 }
 
-/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 참고함으로 옮겨요 */
+/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 보관함(참고)으로 옮겨요 */
 export function excludePractices(ids: string[]) {
   patch(
     ids,
@@ -548,4 +563,46 @@ export function addCategory(name: string) {
     customCategories: [...state.customCategories, { id: `cat_custom_${Date.now()}`, name: trimmed, is_custom: true }],
   });
   return true;
+}
+
+/* ───────── 완료율 (명세서 GET /stats/completion) ───────── */
+
+export type CompletionStats = {
+  done_count: number;
+  todo_count: number;
+  /** 완료 ÷ (완료 + 실천 대기). 실천 대상이 없으면 null */
+  rate: number | null;
+  /** 최근 6주, 완료함 그래프용 */
+  weekly: { week_start: string; rate: number | null }[];
+};
+
+let statsCache: { from: Capture[]; stats: CompletionStats } | null = null;
+function selectStats(): CompletionStats {
+  if (statsCache?.from === state.captures) return statsCache.stats;
+  const list = state.captures.filter((c) => c.status === 'TODO' || c.status === 'DONE');
+  const done = list.filter((c) => c.status === 'DONE');
+  const total = list.length;
+
+  // 이번 주 월요일
+  const monday = todayStart();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const weekly = Array.from({ length: 6 }, (_, i) => {
+    const start = new Date(monday);
+    start.setDate(start.getDate() - (5 - i) * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    // 그 주가 끝날 때까지 담긴 것 중 완료한 비율 (목업 계산)
+    const added = list.filter((c) => new Date(c.created_at) < end);
+    const doneBy = added.filter((c) => c.status === 'DONE' && new Date(c.status_changed_at) < end);
+    return { week_start: dayKey(start), rate: added.length ? doneBy.length / added.length : null };
+  });
+
+  statsCache = {
+    from: state.captures,
+    stats: { done_count: done.length, todo_count: total - done.length, rate: total ? done.length / total : null, weekly },
+  };
+  return statsCache.stats;
+}
+export function useCompletionStats() {
+  return useSyncExternalStore(subscribe, selectStats);
 }

@@ -4,7 +4,7 @@ import { colors, fonts, radius } from '../theme';
 
 /**
  * 제외 확인 (명세서의 '안함', DISMISS)
- * AI 분석 내용이 지워지고 캡처는 참고함으로 옮겨져요. 5초 안에 되돌릴 수 있어요.
+ * AI 분석 내용이 지워지고 캡처는 보관함으로 옮겨져요. 5초 안에 되돌릴 수 있어요.
  */
 export function ExcludeDialog({
   count,
@@ -25,7 +25,7 @@ export function ExcludeDialog({
           <Text style={styles.body}>{'AI가 정리한 실천 방법이 사라지고\n실천함에서 빠져요.'}</Text>
           <View style={styles.info}>
             <Archive size={16} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.infoText}>캡처는 참고함으로 옮겨져요</Text>
+            <Text style={styles.infoText}>캡처는 보관함으로 옮겨져요</Text>
           </View>
           <View style={styles.actions}>
             <Pressable onPress={onCancel} accessibilityRole="button" style={[styles.btn, { backgroundColor: '#f1f0ec' }]}>

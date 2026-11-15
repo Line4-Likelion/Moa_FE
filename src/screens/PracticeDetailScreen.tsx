@@ -406,7 +406,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
                   completePractices([c.id]);
                   show('완료로 표시했어요', true);
                 }}
-                style={{ flex: 1.6 }}
+                style={{ flex: 1 }}
               />
             </>
           )}
@@ -638,12 +638,13 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: radius.button,
     borderWidth: 1,
-    borderColor: '#e8d3cc',
+    borderColor: colors.border,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
   },
-  excludeBtnText: { fontFamily: fonts.bold, fontSize: 15, color: colors.error },
+  excludeBtnText: { fontFamily: fonts.bold, fontSize: 14, color: colors.error },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
   sectionRight: { fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
