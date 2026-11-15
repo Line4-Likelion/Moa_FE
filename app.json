@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MoA",
-    "slug": "moa",
+    "name": "app",
+    "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,47 +11,18 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F8F7F3",
+        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png"
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.line4.moa"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 200,
-          "backgroundColor": "#F8F7F3"
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "스크린샷을 불러와 분류하기 위해 사진 접근 권한이 필요해요.",
-          "granularPermissions": [
-            "photo"
-          ]
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "저장한 장소 근처에 가면 알려드리기 위해 위치를 사용해요.",
-          "locationWhenInUsePermission": "저장한 장소 근처에 가면 알려드리기 위해 위치를 사용해요.",
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
-        }
-      ],
-      "expo-notifications",
-      "expo-secure-store"
-    ],
-    "scheme": "moa"
+      "expo-font"
+    ]
   }
 }
