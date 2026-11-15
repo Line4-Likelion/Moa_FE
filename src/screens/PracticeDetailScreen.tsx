@@ -101,7 +101,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
     </View>
   );
 
-  /* 항목이 없거나 참고함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
+  /* 항목이 없거나 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
   if (!capture || capture.status === 'REFERENCE') {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -110,7 +110,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           <View style={styles.goneIcon}>
             <Archive size={28} color={colors.primary} strokeWidth={1.7} />
           </View>
-          <Text style={styles.goneTitle}>{capture ? '참고함으로 옮겨진 항목이에요' : '찾을 수 없는 항목이에요'}</Text>
+          <Text style={styles.goneTitle}>{capture ? '보관함으로 옮겨진 항목이에요' : '찾을 수 없는 항목이에요'}</Text>
           <Text style={styles.goneDesc}>
             {capture ? '실천에서 제외해서 AI 분석 내용이 지워졌어요' : '이미 정리됐거나 삭제된 항목이에요'}
           </Text>
@@ -484,7 +484,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onConfirm={() => {
           setExcludeOpen(false);
           excludePractices([c.id]);
-          show('참고함으로 옮겼어요', true);
+          show('보관함으로 옮겼어요', true);
         }}
       />
     </View>
