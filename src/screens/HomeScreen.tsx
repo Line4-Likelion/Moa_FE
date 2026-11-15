@@ -340,14 +340,20 @@ function ActivityCard({ activity }: { activity: ReturnType<typeof useHomeData>['
           </View>
         )}
       </View>
-      <Text style={styles.cardDesc}>최근 16주 동안 {activity.total}개를 실천했어요</Text>
+      <Text style={styles.cardDesc}>
+        {empty ? '첫 실천을 완료하고 잔디를 심어보세요' : `최근 16주 동안 ${activity.total}개를 실천했어요`}
+      </Text>
 
       <View>
         <View style={styles.grassRow}>
           {monthLabels.map((m, i) => (
-            <Text key={i} style={styles.monthLabel} numberOfLines={1}>
-              {m}
-            </Text>
+            <View key={i} style={styles.monthCell}>
+              {!!m && (
+                <Text style={[styles.monthLabel, i >= monthLabels.length - 2 ? { right: 0 } : { left: 0 }]}>
+                  {m}
+                </Text>
+              )}
+            </View>
           ))}
         </View>
         <View style={styles.grassRow}>
@@ -375,17 +381,11 @@ function ActivityCard({ activity }: { activity: ReturnType<typeof useHomeData>['
       </View>
 
       <View style={styles.legend}>
-        {empty ? (
-          <Text style={styles.cardDesc}>첫 실천을 완료하면 잔디가 생겨요</Text>
-        ) : (
-          <>
-            <Text style={styles.legendText}>적게</Text>
-            {LEVEL_COLORS.map((c) => (
-              <View key={c} style={[styles.legendCell, { backgroundColor: c }]} />
-            ))}
-            <Text style={styles.legendText}>많이</Text>
-          </>
-        )}
+        <Text style={styles.legendText}>1개</Text>
+        {LEVEL_COLORS.map((c) => (
+          <View key={c} style={[styles.legendCell, { backgroundColor: c }]} />
+        ))}
+        <Text style={styles.legendText}>5개+</Text>
       </View>
 
       <DaySheet day={picked} items={picked ? completedOn(captures, picked.date) : []} onClose={() => setPicked(null)} />
@@ -490,7 +490,8 @@ const styles = StyleSheet.create({
   grassCol: { flex: 1, gap: CELL_GAP },
   grassCell: { aspectRatio: 1, borderRadius: 3 },
   grassToday: { borderWidth: 1.5, borderColor: colors.primary },
-  monthLabel: { flex: 1, fontFamily: fonts.regular, fontSize: 9, color: colors.textSub, marginBottom: 4, overflow: 'visible' },
+  monthCell: { flex: 1, height: 14, marginBottom: 4 },
+  monthLabel: { position: 'absolute', top: 0, width: 32, fontFamily: fonts.regular, fontSize: 10, color: colors.textSub },
   legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
   legendCell: { width: 10, height: 10, borderRadius: 2 },
   legendText: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSub, marginHorizontal: 2 },
