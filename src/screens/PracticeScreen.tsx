@@ -407,7 +407,7 @@ export function PracticeScreen() {
           excludePractices(excludeIds);
           setExcludeIds(null);
           exitSelect();
-          setToast('참고함으로 옮겼어요', true);
+          setToast('보관함으로 옮겼어요', true);
         }}
       />
     </View>
