@@ -14,7 +14,13 @@ import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { ArchiveScreen } from './src/screens/ArchiveScreen';
 import { LoginScreen, SignupScreen } from './src/screens/AuthScreens';
 import { CategoryAddScreen, CategoryChangeScreen } from './src/screens/CategoryScreens';
-import { DevHomeScreen, PracticeScreen } from './src/screens/DevHomeScreen';
+import { DevHomeScreen } from './src/screens/DevHomeScreen';
+import { PracticeScreen } from './src/screens/PracticeScreen';
+import { PracticeDetailScreen } from './src/screens/PracticeDetailScreen';
+import { OriginalViewScreen } from './src/screens/OriginalViewScreen';
+import { FactsEditScreen } from './src/screens/FactsEditScreen';
+import { HomeScreen } from './src/screens/HomeScreen';
+import { SortScreen } from './src/screens/SortScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import {
   LocationPermissionScreen,
@@ -35,7 +41,7 @@ const navTheme = {
 function Tabs() {
   return (
     <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Home" component={DevHomeScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Practice" component={PracticeScreen} />
       <Tab.Screen name="Archive" component={ArchiveScreen} />
       <Tab.Screen name="My" component={MyScreen} />
@@ -71,6 +77,11 @@ export default function App() {
           <Stack.Screen name="PhotoPermission" component={PhotoPermissionScreen} />
           <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
           <Stack.Screen name="NotificationPermission" component={NotificationPermissionScreen} />
+          <Stack.Screen name="DevIndex" component={DevHomeScreen} />
+          <Stack.Screen name="PracticeDetail" component={PracticeDetailScreen} />
+          <Stack.Screen name="OriginalView" component={OriginalViewScreen} options={{ animation: 'fade' }} />
+          <Stack.Screen name="FactsEdit" component={FactsEditScreen} />
+          <Stack.Screen name="Sort" component={SortScreen} options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

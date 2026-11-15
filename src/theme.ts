@@ -14,6 +14,16 @@ export const colors = {
   errorBg: '#f8ede7',
   scrim: 'rgba(25,44,37,0.4)',
   skeleton: '#d9d9d9',
+  /** 홈 실천 달력(잔디) */
+  grassSorted: '#b5d1ab',
+  grassEmpty: '#ebebe8',
+  grassFuture: '#f3f3f1',
+  /** 분류 화면: 참고하기 색 / 스와이프 배경 원 */
+  reference: '#6e604d',
+  referenceTint: '#efeae2',
+  practiceBlob: '#e1ebdd',
+  referenceBlob: '#efe5d6',
+  deleteBlob: '#f2dcd8',
 } as const;
 
 export const fonts = {

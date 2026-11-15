@@ -11,8 +11,11 @@ const TABS: Record<string, { label: string; Icon: LucideIcon }> = {
   My: { label: '마이', Icon: UserRound },
 };
 
-export function TabBar({ state, navigation }: BottomTabBarProps) {
+export function TabBar({ state, navigation, descriptors }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  // 화면이 tabBarStyle: { display: 'none' } 을 주면 탭바를 숨겨요 (예: 실천함 선택 모드)
+  const focusedStyle = descriptors[state.routes[state.index].key]?.options.tabBarStyle;
+  if (StyleSheet.flatten(focusedStyle)?.display === 'none') return null;
 
   return (
     <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
