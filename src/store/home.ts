@@ -81,6 +81,45 @@ export function removeFromUnsorted(ids: string[]) {
   setNc({ items: ncState.items.filter((s) => !set.has(s.id)), pastItems: ncState.pastItems.filter((s) => !set.has(s.id)) });
 }
 
+/* ═════════ 처음 세팅 (명세서 GET/PUT/PATCH /users/me/onboarding) ═════════ */
+
+export type OnboardingRange = 'RECENT_30' | 'LAST_MONTH' | 'ALL';
+
+/** 기기의 스크린샷 전체 장수 (목업). 실제로는 기기 사진 목록에서 세요 */
+export const MOCK_TOTAL_SCREENSHOTS = 482;
+/** 범위별로 새 캡처가 되는 장수 (목업). 최근 한 달은 실제로는 찍은 날짜로 계산 */
+const RANGE_COUNT: Record<OnboardingRange, number> = { RECENT_30: 30, LAST_MONTH: 64, ALL: MOCK_TOTAL_SCREENSHOTS };
+
+/**
+ * 처음 세팅을 마쳤는지 (서버 onboarding.done)
+ * 테스트용: false 로 바꾸면 로그인할 때마다 처음 세팅부터 보여요
+ */
+let onboardingDone = true;
+export function isOnboardingDone() {
+  return onboardingDone;
+}
+
+/**
+ * 범위 고르기 → [첫 10장 나누기] (PUT /users/me/onboarding)
+ * 고른 범위만 새 캡처, 나머지는 지난 캡처로 나눠요 (baseline_at)
+ */
+export function applyOnboardingRange(range: OnboardingRange) {
+  const all = Array.from({ length: MOCK_TOTAL_SCREENSHOTS }, (_, i) =>
+    i < UNSORTED_SCREENSHOTS.length ? UNSORTED_SCREENSHOTS[i] : { id: `shot-all-${i}`, capturedAt: '' },
+  );
+  const n = RANGE_COUNT[range];
+  setNc({ items: all.slice(0, n), pastItems: all.slice(n), collapsedOn: null });
+}
+
+/** 첫 결과 화면에서 세팅 완료 (PATCH /users/me/onboarding { done: true }) */
+export function finishOnboarding() {
+  onboardingDone = true;
+}
+/** 개발용: 처음 세팅 다시 보기 */
+export function resetOnboarding() {
+  onboardingDone = false;
+}
+
 /** 개수 구간 (명세서 표) */
 export type NewCaptureTier = 'none' | 'few' | 'normal' | 'piling' | 'many';
 export function tierOf(count: number): NewCaptureTier {

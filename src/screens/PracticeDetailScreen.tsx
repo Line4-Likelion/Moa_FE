@@ -41,6 +41,7 @@ import {
   type Capture,
 } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
+import { MOCK_FAIL } from '../mock/failures';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PracticeDetail'>;
 
@@ -85,6 +86,10 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
   const [factsOpen, setFactsOpen] = useState(false);
 
   const show = (text: string, undo = false) => setToast({ text, undo, key: Date.now() });
+  /** 저장 실패: 이전 상태 그대로 두고 재시도 안내 (명세서) */
+  const failed = (retry: () => void) =>
+    setToast({ text: '저장하지 못했어요', key: Date.now(), action: { label: '다시 시도', onPress: retry } });
+  const [reloadKey, setReloadKey] = useState(0);
   const hideToast = useCallback(() => setToast(null), []);
 
   const header = (
@@ -107,6 +112,20 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!capture) navigation.navigate('Tabs', { screen: 'Practice' });
   }, [capture, navigation]);
+
+  /* 상세를 못 불러옴 (GET /captures/{id} 실패) */
+  if (MOCK_FAIL.detailLoad && reloadKey >= 0) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        {header}
+        <View style={styles.gone}>
+          <Text style={styles.goneTitle}>실천을 불러오지 못했어요</Text>
+          <Text style={styles.goneDesc}>잠시 후 다시 시도해주세요</Text>
+          <Button label="다시 시도" variant="secondary" onPress={() => setReloadKey((k) => k + 1)} style={{ marginTop: 16, paddingHorizontal: 24 }} />
+        </View>
+      </View>
+    );
+  }
 
   /* 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
   if (!capture || capture.status === 'REFERENCE') {
@@ -158,7 +177,9 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
   const warnCount = factRows.filter((f) => f.value === null).length;
 
   const onToggle = (itemId: string) => {
-    if (toggleChecklist(c.id, itemId)) show('모든 단계를 끝내서 완료로 옮겼어요', true);
+    const r = toggleChecklist(c.id, itemId);
+    if (r === 'completed') show('모든 단계를 끝내서 완료로 옮겼어요', true);
+    else if (r === 'failed') failed(() => onToggle(itemId));
   };
 
   return (
@@ -402,8 +423,9 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
             <Button
               label="다시 하기"
               onPress={() => {
-                const [newId] = redoPractices([c.id]);
-                if (newId) navigation.replace('PracticeDetail', { id: newId });
+                const ids = redoPractices([c.id]);
+                if (!ids) return failed(() => {});
+                navigation.replace('PracticeDetail', { id: ids[0] });
               }}
               style={{ flex: 1 }}
             />
@@ -425,8 +447,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
               <Button
                 label="완료"
                 onPress={() => {
-                  completePractices([c.id]);
-                  show('완료로 표시했어요', true);
+                  const done = () => {
+                    if (completePractices([c.id])) show('완료로 표시했어요', true);
+                    else failed(done);
+                  };
+                  done();
                 }}
                 style={{ flex: 1 }}
               />
@@ -477,8 +502,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onCancel={() => setSnoozeOpen(false)}
         onConfirm={(value) => {
           setSnoozeOpen(false);
-          snoozeCaptures([c.id], value ?? undefined);
-          show(`${md(value ?? nextWeekSameDay())}에 다시 알려드릴게요`, true);
+          const save = () => {
+            if (snoozeCaptures([c.id], value ?? undefined)) show(`${md(value ?? nextWeekSameDay())}에 다시 알려드릴게요`, true);
+            else failed(save);
+          };
+          save();
         }}
       />
 
@@ -494,8 +522,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onCancel={() => setDeadlineOpen(false)}
         onConfirm={(value) => {
           setDeadlineOpen(false);
-          updateFacts(c.id, {}, value);
-          show(value ? `마감을 ${md(value)}로 바꿨어요` : '마감 없음으로 바꿨어요');
+          const save = () => {
+            if (updateFacts(c.id, {}, value)) show(value ? `마감을 ${md(value)}로 바꿨어요` : '마감 없음으로 바꿨어요');
+            else failed(save);
+          };
+          save();
         }}
       />
 
@@ -505,8 +536,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onCancel={() => setExcludeOpen(false)}
         onConfirm={() => {
           setExcludeOpen(false);
-          excludePractices([c.id]);
-          show('보관함으로 옮겼어요', true);
+          const save = () => {
+            if (excludePractices([c.id])) show('보관함으로 옮겼어요', true);
+            else failed(save);
+          };
+          save();
         }}
       />
     </View>

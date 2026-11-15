@@ -3,7 +3,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { undoLast } from '../store/practices';
 import { colors, fonts } from '../theme';
 
-export type ToastState = { text: string; undo?: boolean; key: number } | null;
+export type ToastState = {
+  text: string;
+  undo?: boolean;
+  key: number;
+  /** 저장 실패 시 [다시 시도] 같은 버튼 */
+  action?: { label: string; onPress: () => void };
+} | null;
 
 /** 화면 아래에 잠깐 뜨는 안내. undo 가 true 면 5초 동안 [되돌리기] 버튼을 보여줘요 */
 export function UndoToast({
@@ -20,7 +26,7 @@ export function UndoToast({
 }) {
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(onHide, toast.undo ? 5000 : 2200);
+    const t = setTimeout(onHide, toast.undo || toast.action ? 5000 : 2200);
     return () => clearTimeout(t);
   }, [toast, onHide]);
 
@@ -28,6 +34,18 @@ export function UndoToast({
   return (
     <View style={[styles.toast, { bottom }]} accessibilityLiveRegion="polite">
       <Text style={styles.text}>{toast.text}</Text>
+      {toast.action && (
+        <Pressable
+          onPress={() => {
+            onHide();
+            toast.action?.onPress();
+          }}
+          accessibilityRole="button"
+          hitSlop={10}
+        >
+          <Text style={styles.undo}>{toast.action.label}</Text>
+        </Pressable>
+      )}
       {toast.undo && (
         <Pressable
           onPress={() => {

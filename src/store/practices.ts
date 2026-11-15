@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { MOCK_FAIL } from '../mock/failures';
 
 /* ═════════ API 명세서와 같은 모양의 데이터 (Capture 객체) ═════════
  * 서버 연동 시 이 타입 그대로 응답을 받아 넣으면 돼요.
@@ -340,6 +341,9 @@ function patch(ids: string[], fn: (c: Capture) => Capture, undoable = false) {
 }
 const now = () => new Date().toISOString();
 
+/** 저장 실패 흉내 (목업). 실제로는 서버 응답이 실패면 false — 화면은 이전 상태를 그대로 둬요 */
+const saveFails = () => MOCK_FAIL.actionSave;
+
 /* ───────── 읽기 ───────── */
 
 export function useCaptures() {
@@ -433,6 +437,7 @@ export function isOverdue(p: Practice) {
 
 /** 완료 (COMPLETE). 체크리스트도 모두 체크된 상태로 보여줘요 */
 export function completePractices(ids: string[]) {
+  if (saveFails()) return false;
   patch(
     ids,
     (c) => ({
@@ -445,11 +450,14 @@ export function completePractices(ids: string[]) {
     }),
     true,
   );
+  return true;
 }
 
 /** 보류 (SNOOZE). 날짜를 안 주면 다음 주 같은 요일 */
 export function snoozeCaptures(ids: string[], until: string = nextWeekSameDay()) {
+  if (saveFails()) return false;
   patch(ids, (c) => ({ ...c, snooze_until: until, next_alarm_at: at9(until) }), true);
+  return true;
 }
 
 /** 보류 풀기: 지금 다시 하기 */
@@ -459,6 +467,7 @@ export function resumeCaptures(ids: string[]) {
 
 /** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 보관함(참고)으로 옮겨요 */
 export function excludePractices(ids: string[]) {
+  if (saveFails()) return false;
   patch(
     ids,
     (c) => ({
@@ -478,6 +487,7 @@ export function excludePractices(ids: string[]) {
     }),
     true,
   );
+  return true;
 }
 
 /** 되돌리기 (UNDO). 5초가 지났으면 false */
@@ -491,11 +501,13 @@ export function undoLast() {
 
 /**
  * 체크리스트 체크 (PATCH /captures/{id}/checklist/{item_id})
- * 모두 체크되면 자동으로 완료해요. 완료됐으면 true
+ * 모두 체크되면 자동으로 완료해요
  */
-export function toggleChecklist(id: string, itemId: string) {
+export function toggleChecklist(id: string, itemId: string): 'toggled' | 'completed' | 'failed' {
+  // 실패하면 이전 체크 상태 그대로 (명세서)
+  if (saveFails()) return 'failed';
   const target = state.captures.find((c) => c.id === id);
-  if (!target) return false;
+  if (!target) return 'failed';
   const checklistNext = target.checklist.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i));
   const allDone = checklistNext.length > 0 && checklistNext.every((i) => i.checked);
   if (allDone && target.status === 'TODO') {
@@ -504,22 +516,25 @@ export function toggleChecklist(id: string, itemId: string) {
       (c) => ({ ...c, checklist: checklistNext, status: 'DONE', status_changed_at: now(), next_alarm_at: null, snooze_until: null }),
       true,
     );
-    return true;
+    return 'completed';
   }
   patch([id], (c) => ({ ...c, checklist: checklistNext }));
-  return false;
+  return 'toggled';
 }
 
 /** 카테고리 변경 (PATCH /captures/{id}/category) */
 export function changeCategory(ids: string[], categoryName: string) {
+  if (saveFails()) return false;
   const all = [...BASE, ...state.customCategories, ETC];
   const next = all.find((c) => c.name === categoryName);
-  if (!next) return;
+  if (!next) return false;
   patch(ids, (c) => ({ ...c, category: next, category_source: 'USER' }));
+  return true;
 }
 
 /** 추출 정보 수정 (PATCH /captures/{id}/facts). deadline 을 넘기면 마감도 바꿔요 (null = 마감 없음) */
 export function updateFacts(id: string, values: Record<string, string>, deadline?: string | null) {
+  if (saveFails()) return false;
   patch([id], (c) => {
     const facts = c.facts.map((f) =>
       f.key in values ? { ...f, value: values[f.key].trim() || null, edited: true } : f,
@@ -532,14 +547,17 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
     }
     return { ...c, facts, deadline: nextDeadline };
   });
+  return true;
 }
 
 /** AI가 읽은 값으로 되돌리기 (PATCH /captures/{id}/facts 에 value: null) */
 export function revertFact(id: string, key: string) {
+  if (saveFails()) return false;
   patch([id], (c) => ({
     ...c,
     facts: c.facts.map((f) => (f.key === key ? { ...f, value: aiOriginal.get(`${id}:${key}`) ?? null, edited: false } : f)),
   }));
+  return true;
 }
 
 /**
@@ -548,6 +566,7 @@ export function revertFact(id: string, key: string) {
  * 지금은 팀 결정대로 완료 기록은 두고 복제해서 진행에 새로 담아요.
  */
 export function redoPractices(ids: string[]) {
+  if (saveFails()) return null;
   const set = new Set(ids);
   const stamp = Date.now();
   const copies = state.captures
@@ -669,6 +688,8 @@ let mockResultIndex = 0;
  * ACT 는 바로 이미지 업로드 → 분석 (needs_upload: true)
  */
 export function classifyShot(shot: { id: string; capturedAt: string; uri?: string }, sort: 'ACT' | 'REF') {
+  // 저장 실패 (500): 화면은 선택을 그대로 두고 재시도를 안내해요
+  if (MOCK_FAIL.classifySave) throw new Error('분류를 저장하지 못했어요');
   const id = `cap_${shot.id}_${Date.now()}`;
   const base = capture({
     id,
@@ -682,7 +703,17 @@ export function classifyShot(shot: { id: string; capturedAt: string; uri?: strin
     status_changed_at: now(),
   });
   commit([base, ...state.captures]);
-  if (sort === 'ACT') runMockAnalysis(id);
+  if (sort === 'ACT') {
+    // 분석 한도 초과 (429): 분류는 저장됐지만 분석은 못 해서 홈에 '실패'로 보여요
+    if (MOCK_FAIL.analysisLimit) {
+      patch([id], (c) => ({
+        ...c,
+        status: 'FAILED',
+        job_step: undefined,
+        error: { code: 'RATE_LIMITED', message: '오늘 분석할 수 있는 장수를 다 썼어요' },
+      }));
+    } else runMockAnalysis(id);
+  }
   return id;
 }
 

@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { StackActions, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -85,6 +85,8 @@ export function SortScreen() {
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState<BatchResult | null>(null);
   const [showCoach, setShowCoach] = useState(!coachSeen);
+  /** 분류 저장 실패 시 다시 시도할 방향 */
+  const [saveError, setSaveError] = useState<Decision | null>(null);
 
   const decidedCount = Object.keys(decisions).length;
   const current = batch[index];
@@ -126,8 +128,13 @@ export function SortScreen() {
   const finish = (ds: Record<string, Decision>, del: typeof deleteState) => {
     const show = (finalDel: typeof deleteState) => {
       commitClassified(ds);
-      // TODO(프론트1 · 알림 권한): 처음으로 실천 항목이 생겼을 때 여기서 알림 권한 요청 (명세서 권한 표)
       const count = (d: Decision) => batch.filter((s) => ds[s.id] === d).length;
+      // TODO(프론트1 · 알림 권한): 처음으로 실천 항목이 생겼을 때 여기서 알림 권한 요청 (명세서 권한 표)
+      // 처음 세팅의 첫 분류: 결과 요약 대신 첫 결과 화면으로
+      if (route.params?.onboarding) {
+        nav.dispatch(StackActions.replace('OnboardingResult', { practice: count('practice'), reference: count('reference') }));
+        return;
+      }
       setResult({
         practice: count('practice'),
         reference: count('reference'),
@@ -144,6 +151,7 @@ export function SortScreen() {
 
   const decide = (decision: Decision) => {
     if (!current) return;
+    setSaveError(null);
     const prev = decisions[current.id];
     const prevCapture = captureIds[current.id];
 
@@ -156,7 +164,13 @@ export function SortScreen() {
           delete nextCaptureIds[current.id];
         } else changeSort(prevCapture, decision === 'practice' ? 'ACT' : 'REF');
       } else if (decision !== 'delete') {
-        nextCaptureIds[current.id] = classifyShot(current, decision === 'practice' ? 'ACT' : 'REF');
+        try {
+          nextCaptureIds[current.id] = classifyShot(current, decision === 'practice' ? 'ACT' : 'REF');
+        } catch {
+          // 저장 실패 (500): 카드는 그대로 두고 재시도 안내 (명세서: 화면의 선택은 유지)
+          setSaveError(decision);
+          return;
+        }
       }
     }
     const nextDel = { ...deleteState };
@@ -188,6 +202,12 @@ export function SortScreen() {
   const close = () => {
     const leave = () => {
       commitClassified();
+      // 처음 세팅 중에 닫으면 뒤로 갈 화면이 없어서, 지금까지 나눈 걸로 첫 결과 화면을 보여줘요
+      if (route.params?.onboarding) {
+        const count = (d: Decision) => Object.values(decisions).filter((v) => v === d).length;
+        nav.dispatch(StackActions.replace('OnboardingResult', { practice: count('practice'), reference: count('reference') }));
+        return;
+      }
       nav.goBack();
     };
     // 분류 화면 닫기: 중간에 닫았는데 삭제로 모은 사진이 있으면 팝업 (명세서 제안)
@@ -262,6 +282,15 @@ export function SortScreen() {
       </View>
 
       <DeleteHint swipe={swipe} pending={pendingIds().length} />
+
+      {saveError && (
+        <View style={styles.saveError} accessibilityRole="alert">
+          <Text style={styles.saveErrorText}>분류를 저장하지 못했어요</Text>
+          <Pressable onPress={() => decide(saveError)} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.saveErrorBtn}>다시 시도</Text>
+          </Pressable>
+        </View>
+      )}
 
       {isRevisit && (
         <View style={styles.revisitHint}>
@@ -637,6 +666,19 @@ const styles = StyleSheet.create({
   deleteHintFilled: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.error, justifyContent: 'center' },
   deleteHintText: { fontFamily: fonts.medium, fontSize: 12 },
 
+  saveError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    alignSelf: 'center',
+    marginTop: 4,
+    backgroundColor: colors.errorBg,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  saveErrorText: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
+  saveErrorBtn: { fontFamily: fonts.bold, fontSize: 13, color: colors.error, textDecorationLine: 'underline' },
   revisitHint: { alignSelf: 'center', marginTop: 4, backgroundColor: colors.tint, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   revisitHintText: { fontFamily: fonts.regular, fontSize: 12, color: colors.text },
 

@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronRight, Flame, RefreshCw } from 'lucide-react-native';
 import { Button } from '../components/Button';
+import { MOCK_FAIL } from '../mock/failures';
 import { UndoToast, type ToastState } from '../components/UndoToast';
 import {
   batchSizeFor,
@@ -30,6 +31,9 @@ export function HomeScreen() {
 
   const [toast, setToastState] = useState<ToastState>(null);
   const show = (text: string, undo = false) => setToastState({ text, undo, key: Date.now() });
+  const [reloadKey, setReloadKey] = useState(0);
+  /** GET /home 실패 (목업 스위치) */
+  const homeFailed = MOCK_FAIL.homeLoad && reloadKey >= 0;
   const hideToast = useCallback(() => setToastState(null), []);
 
   const startSort = (limit: number) => nav.navigate('Sort', { mode: 'new', limit });
@@ -54,6 +58,15 @@ export function HomeScreen() {
           }}
         />
 
+        {homeFailed ? (
+          /* 홈 정보를 못 불러옴: 새 캡처 카드는 기기에서 세서 그대로 보이고, 서버 정보만 재시도 */
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>리마인드와 실천 기록을 불러오지 못했어요</Text>
+            <Text style={styles.cardDesc}>잠시 후 다시 시도해주세요</Text>
+            <Button label="다시 시도" variant="secondary" onPress={() => setReloadKey((k) => k + 1)} />
+          </View>
+        ) : (
+          <>
         {home.processing.length > 0 && (
           <ProcessingCard items={home.processing} onRetry={(id) => reanalyze(id)} />
         )}
@@ -63,13 +76,19 @@ export function HomeScreen() {
           todoCount={home.todoCount}
           onOpen={(id) => nav.navigate('PracticeDetail', { id })}
           onComplete={(r) => {
-            completePractices([r.capture_id]);
-            show(`'${r.title}' 완료했어요`, true);
+            const save = () => {
+              if (completePractices([r.capture_id])) show(`'${r.title}' 완료했어요`, true);
+              else
+                setToastState({ text: '저장하지 못했어요', key: Date.now(), action: { label: '다시 시도', onPress: save } });
+            };
+            save();
           }}
           onSeeAll={() => nav.navigate('Tabs', { screen: 'Practice' })}
         />
 
         <ActivityCard activity={home.activity} />
+          </>
+        )}
 
         {nc.pastCount > 0 && (
           <Pressable

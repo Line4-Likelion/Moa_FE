@@ -5,6 +5,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertCircle, Check, ChevronDown, Image as ImageIcon, Plus, Search, Sparkles } from 'lucide-react-native';
 import { Button } from '../components/Button';
+import { MOCK_FAIL } from '../mock/failures';
 import { ExcludeDialog } from '../components/ExcludeDialog';
 import { UndoToast, type ToastState } from '../components/UndoToast';
 import type { TabParamList } from '../navigation/types';
@@ -109,6 +110,10 @@ export function PracticeScreen() {
   const [excludeIds, setExcludeIds] = useState<string[] | null>(null);
   const [toast, setToastState] = useState<ToastState>(null);
   const setToast = (text: string, undo = false) => setToastState({ text, undo, key: Date.now() });
+  /** 저장 실패: 이전 상태 그대로 두고 재시도 안내 (명세서) */
+  const failed = (retry: () => void) =>
+    setToastState({ text: '저장하지 못했어요', key: Date.now(), action: { label: '다시 시도', onPress: retry } });
+  const [reloadKey, setReloadKey] = useState(0);
   const hideToast = useCallback(() => setToastState(null), []);
 
   // 선택 모드에서는 하단 탭바 대신 선택 버튼을 보여줘요
@@ -239,7 +244,14 @@ export function PracticeScreen() {
           </View>
         </View>
 
-        {isEmptyTab ? (
+        {MOCK_FAIL.practiceListLoad && reloadKey >= 0 ? (
+          /* 목록을 못 불러옴 (GET /captures 실패) */
+          <View style={styles.loadError}>
+            <Text style={styles.loadErrorTitle}>실천 목록을 불러오지 못했어요</Text>
+            <Text style={styles.loadErrorDesc}>잠시 후 다시 시도해주세요</Text>
+            <Button label="다시 시도" variant="secondary" onPress={() => setReloadKey((k) => k + 1)} style={{ marginTop: 12, paddingHorizontal: 24 }} />
+          </View>
+        ) : isEmptyTab ? (
           <EmptyState tab={tab} onSort={() => rootNav.navigate('Sort')} />
         ) : (
           <>
@@ -306,8 +318,11 @@ export function PracticeScreen() {
                           variant="overdue"
                           onExclude={() => setExcludeIds([p.id])}
                           onComplete={() => {
-                            completePractices([p.id]);
-                            setToast('완료로 옮겼어요', true);
+                            const save = () => {
+                              if (completePractices([p.id])) setToast('완료로 옮겼어요', true);
+                              else failed(save);
+                            };
+                            save();
                           }}
                         />
                       ))}
@@ -365,9 +380,12 @@ export function PracticeScreen() {
               tone="primary"
               disabled={!picked.length}
               onPress={() => {
-                redoPractices(picked);
-                exitSelect();
-                setToast('진행에 다시 담았어요');
+                const save = () => {
+                  if (!redoPractices(picked)) return failed(save);
+                  exitSelect();
+                  setToast('진행에 다시 담았어요');
+                };
+                save();
               }}
             />
           )}
@@ -403,10 +421,13 @@ export function PracticeScreen() {
           rootNav.navigate('CategoryAdd');
         }}
         onApply={(c) => {
-          changeCategory(picked, c);
           setCategorySheet(false);
-          exitSelect();
-          setToast(`'${c}'(으)로 옮겼어요`);
+          const save = () => {
+            if (!changeCategory(picked, c)) return failed(save);
+            exitSelect();
+            setToast(`'${c}'(으)로 옮겼어요`);
+          };
+          save();
         }}
       />
 
@@ -416,10 +437,14 @@ export function PracticeScreen() {
         onCancel={() => setExcludeIds(null)}
         onConfirm={() => {
           if (!excludeIds) return;
-          excludePractices(excludeIds);
+          const ids = excludeIds;
           setExcludeIds(null);
-          exitSelect();
-          setToast('보관함으로 옮겼어요', true);
+          const save = () => {
+            if (!excludePractices(ids)) return failed(save);
+            exitSelect();
+            setToast('보관함으로 옮겼어요', true);
+          };
+          save();
         }}
       />
     </View>
@@ -748,6 +773,9 @@ function CategorySheet({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  loadError: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 6 },
+  loadErrorTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  loadErrorDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
 
   statCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, gap: 14 },
   statHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },

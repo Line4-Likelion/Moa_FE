@@ -23,6 +23,7 @@ export function FactsEditScreen({ navigation, route }: Props) {
   );
   const [deadline, setDeadline] = useState<string | null>(capture?.deadline.date ?? null);
   const [dateOpen, setDateOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!capture) {
     return (
@@ -39,8 +40,9 @@ export function FactsEditScreen({ navigation, route }: Props) {
   const dirty = deadlineChanged || Object.keys(changedFacts).length > 0;
 
   const save = () => {
-    updateFacts(capture.id, changedFacts, deadlineChanged ? deadline : undefined);
-    navigation.goBack();
+    if (updateFacts(capture.id, changedFacts, deadlineChanged ? deadline : undefined)) navigation.goBack();
+    // 실패하면 입력은 그대로 두고 안내 (명세서: 저장 실패 시 기존 상태 유지)
+    else setSaveError('저장하지 못했어요. 다시 시도해주세요.');
   };
 
   const deadlineLabel = deadline
@@ -89,8 +91,8 @@ export function FactsEditScreen({ navigation, route }: Props) {
           {f.edited && (
             <Pressable
               onPress={() => {
-                revertFact(capture.id, f.key);
-                navigation.goBack();
+                if (revertFact(capture.id, f.key)) navigation.goBack();
+                else setSaveError('되돌리지 못했어요. 다시 시도해주세요.');
               }}
               accessibilityRole="button"
               hitSlop={6}
@@ -101,6 +103,8 @@ export function FactsEditScreen({ navigation, route }: Props) {
           )}
         </View>
       ))}
+
+      {saveError && <Text style={styles.error}>{saveError}</Text>}
 
       <View style={styles.note}>
         <Text style={styles.noteTitle}>원본은 수정되지 않아요</Text>
@@ -140,6 +144,7 @@ const styles = StyleSheet.create({
   },
   dateText: { fontFamily: fonts.regular, fontSize: 15, color: colors.text },
   hint: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
+  error: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
   revert: { fontFamily: fonts.medium, fontSize: 12, color: colors.primary, textDecorationLine: 'underline' },
   note: { backgroundColor: colors.tint, borderRadius: radius.card, padding: 14, gap: 4 },
   noteTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.primary },
