@@ -28,7 +28,11 @@ export type RootStackParamList = {
   /** 추출 정보 수정 */
   FactsEdit: { id: string };
   /** 스와이프 분류 */
-  Sort: undefined;
+  /**
+   * mode: new 새 캡처 / past 지난 캡처, limit: 이번에 분류할 장수 (12장 이하면 전부, 많으면 10장)
+   * TODO: 분류 화면이 아직 이 값을 쓰지 않아요 (분류 화면 수정 때 반영)
+   */
+  Sort: { mode?: 'new' | 'past'; limit?: number } | undefined;
   /** 개발용 화면 목차 (홈 MoA 로고 길게 누르기) */
   DevIndex: undefined;
 };

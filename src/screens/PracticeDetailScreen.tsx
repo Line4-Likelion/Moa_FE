@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,9 +30,10 @@ import {
   isSnoozed,
   nextWeekSameDay,
   parseDay,
+  ANALYSIS_STEP_LABEL,
   reanalyze,
+  type AnalysisStep,
   redoPractices,
-  resumeCaptures,
   snoozeCaptures,
   toggleChecklist,
   updateFacts,
@@ -44,6 +45,7 @@ import { colors, fonts, radius } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'PracticeDetail'>;
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const ANALYSIS_STEPS: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
 const md = (key: string) => {
   const d = parseDay(key);
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
@@ -101,7 +103,12 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
     </View>
   );
 
-  /* 항목이 없거나 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
+  // 알림으로 들어왔는데 항목을 찾을 수 없으면 실천 목록으로 이동 (명세서: 푸시 딥링크 예외처리)
+  useEffect(() => {
+    if (!capture) navigation.navigate('Tabs', { screen: 'Practice' });
+  }, [capture, navigation]);
+
+  /* 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
   if (!capture || capture.status === 'REFERENCE') {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -191,7 +198,6 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           <Banner
             tone="sub"
             icon={<PauseCircle size={16} color={colors.textSub} strokeWidth={2} />}
-            action={{ label: '지금 다시 하기', onPress: () => (resumeCaptures([c.id]), show('진행으로 다시 꺼냈어요')) }}
           >
             {`${md(c.snooze_until!)}에 다시 알려드릴게요`}
           </Banner>
@@ -294,7 +300,23 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           {analyzing ? (
             <View style={styles.noGuide}>
               <RefreshCw size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.noGuideTitle}>실천 방법을 다시 정리하고 있어요</Text>
+              <Text style={styles.noGuideTitle}>실천 방법을 정리하고 있어요</Text>
+              {c.job_step && (
+                <Text style={styles.noGuideDesc}>
+                  {ANALYSIS_STEPS.indexOf(c.job_step) + 1} / {ANALYSIS_STEPS.length} · {ANALYSIS_STEP_LABEL[c.job_step]}
+                </Text>
+              )}
+            </View>
+          ) : c.status === 'FAILED' ? (
+            <View style={styles.noGuide}>
+              <Text style={styles.noGuideTitle}>사진을 끝까지 분석하지 못했어요</Text>
+              <Text style={styles.noGuideDesc}>{c.error?.message ?? '잠시 후 다시 시도해주세요'}</Text>
+              <Button
+                label="다시 분석"
+                variant="secondary"
+                onPress={() => reanalyze(c.id)}
+                style={{ marginTop: 8, alignSelf: 'stretch' }}
+              />
             </View>
           ) : noGuide ? (
             <View style={styles.noGuide}>

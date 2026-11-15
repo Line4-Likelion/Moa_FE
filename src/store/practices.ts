@@ -45,6 +45,17 @@ export type Capture = {
   status_changed_at: string;
   /** 앱 전용: 기기에서 불러온 사진 주소 (서버 필드 아님) */
   uri?: string;
+  /** 앱 전용: 분석 중일 때 진행 단계 (GET /analysis-jobs 의 step) */
+  job_step?: AnalysisStep;
+};
+
+/** 분석 단계 (GET /analysis-jobs 의 step) */
+export type AnalysisStep = 'OCR' | 'DEADLINE' | 'CATEGORIZE' | 'GUIDE';
+export const ANALYSIS_STEP_LABEL: Record<AnalysisStep, string> = {
+  OCR: '원문 정보 확인',
+  DEADLINE: '마감기한 판단',
+  CATEGORIZE: '카테고리 정리',
+  GUIDE: '실천 가이드 만들기',
 };
 
 /* ═════════ 카테고리 ═════════ */
@@ -123,7 +134,7 @@ const fact = (key: string, label: string, value: string | null, box: Box | null 
 const checklist = (id: string, texts: string[], done: number): ChecklistItem[] =>
   texts.map((text, i) => ({ id: `chk_${id}_${i + 1}`, text, checked: i < done }));
 
-function capture(partial: Partial<Capture> & Pick<Capture, 'id' | 'title'>): Capture {
+function capture(partial: Partial<Capture> & Pick<Capture, 'id'> & { title: string | null }): Capture {
   return {
     file_key: `media:${partial.id}|Screenshot.jpg`,
     status: 'TODO',
@@ -242,6 +253,21 @@ const SEED: Capture[] = [
     next_alarm_at: at9(dayOffset(5)),
     created_at: isoDaysAgo(8),
   }),
+  // 홈 '분석 중 · 실패' 영역용 (명세서: 분석 중·실패 항목은 홈에만 보여요)
+  capture({
+    id: 'cap_analyzing',
+    title: null,
+    status: 'ANALYZING',
+    job_step: 'DEADLINE',
+    created_at: isoDaysAgo(0),
+  }),
+  capture({
+    id: 'cap_failed',
+    title: null,
+    status: 'FAILED',
+    error: { code: 'ANALYSIS_FAILED', message: '사진을 끝까지 분석하지 못했어요' },
+    created_at: isoDaysAgo(0),
+  }),
   capture({
     id: 'cap_cafe',
     title: '성신여대 카페 찾기',
@@ -279,6 +305,11 @@ const INITIAL: Capture[] =
   MOCK_MODE === 'empty' ? [] : MOCK_MODE === 'holdOnly' ? SEED.filter((c) => isSnoozed(c)) : SEED;
 
 type State = { captures: Capture[]; customCategories: Category[] };
+
+/** 서버가 보관하는 AI 원래 값 (facts 를 value: null 로 PATCH 하면 이 값으로 되돌아가요). 목업용 */
+const aiOriginal = new Map<string, string | null>(
+  INITIAL.flatMap((c) => c.facts.map((f) => [`${c.id}:${f.key}`, f.value] as [string, string | null])),
+);
 
 let state: State = { captures: INITIAL, customCategories: [] };
 const listeners = new Set<() => void>();
@@ -503,14 +534,12 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
   });
 }
 
-/** 링크 수정 */
-export function updateLink(id: string, url: string) {
-  patch([id], (c) => {
-    const trimmed = url.trim();
-    if (!trimmed) return { ...c, links: [] };
-    const first = c.links[0] ?? { type: 'WEB', label: '원문 링크 열기', url: '' };
-    return { ...c, links: [{ ...first, url: trimmed }, ...c.links.slice(1)] };
-  });
+/** AI가 읽은 값으로 되돌리기 (PATCH /captures/{id}/facts 에 value: null) */
+export function revertFact(id: string, key: string) {
+  patch([id], (c) => ({
+    ...c,
+    facts: c.facts.map((f) => (f.key === key ? { ...f, value: aiOriginal.get(`${id}:${key}`) ?? null, edited: false } : f)),
+  }));
 }
 
 /**
@@ -538,18 +567,35 @@ export function redoPractices(ids: string[]) {
   return copies.map((c) => c.id);
 }
 
-/** 다시 분석 (POST /captures/{id}/analysis). 목업이라 잠깐 뒤 기본 가이드를 채워요 */
-export function reanalyze(id: string) {
-  patch([id], (c) => ({ ...c, status: 'ANALYZING' }));
+/**
+ * 다시 분석 (POST /captures/{id}/analysis → GET /analysis-jobs 로 진행 확인)
+ * 목업이라 단계를 0.8초씩 넘기고 기본 가이드를 채워요. 실패 테스트는 fail = true
+ */
+export function reanalyze(id: string, fail = false) {
+  const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
+  patch([id], (c) => ({ ...c, status: 'ANALYZING', error: null, job_step: 'OCR' }));
+  steps.forEach((step, i) => {
+    setTimeout(() => patch([id], (c) => ({ ...c, job_step: step })), i * 800);
+  });
   setTimeout(() => {
+    if (fail) {
+      patch([id], (c) => ({
+        ...c,
+        status: 'FAILED',
+        job_step: undefined,
+        error: { code: 'ANALYSIS_TIMEOUT', message: '요청은 접수됐지만 분석이 중단됐어요' },
+      }));
+      return;
+    }
     patch([id], (c) => ({
       ...c,
       status: 'TODO',
+      job_step: undefined,
       summary: c.summary ?? '원본 내용을 다시 정리했어요',
       guide: { title: '실천 가이드', lines: ['원본을 다시 확인하고 필요한 일을 정리해요.'], preparations: [] },
       checklist: checklist(c.id, ['원본 내용 확인하기', '실천하기'], 0),
     }));
-  }, 1500);
+  }, steps.length * 800);
 }
 
 /** 카테고리 추가 (POST /categories). 이미 있으면 false */
@@ -605,4 +651,91 @@ function selectStats(): CompletionStats {
 }
 export function useCompletionStats() {
   return useSyncExternalStore(subscribe, selectStats);
+}
+
+/* ───────── 분류 (명세서 POST /captures/classify, PATCH /captures/{id}/sort) ───────── */
+
+/** 목업 분석 결과 (서버 연결 전 예시). 차례대로 돌려 써요 */
+const MOCK_RESULTS: { title: string; summary: string; category: string; steps: string[]; deadlineIn: number | null }[] = [
+  { title: '홍대 파티룸 예약', summary: '연말 모임 장소 잡기', category: '여행', steps: ['날짜 정하기', '인원 확인하기', '예약하기'], deadlineIn: 6 },
+  { title: '토익 스피킹 접수', summary: '12월 정기시험', category: '공부', steps: ['시험 날짜 고르기', '접수하기'], deadlineIn: 3 },
+  { title: '을지로 카페 가보기', summary: '조용한 작업 카페', category: '카페', steps: ['위치 확인하기', '방문하기'], deadlineIn: null },
+  { title: '겨울 코트 사기', summary: '블랙프라이데이 할인', category: '쇼핑', steps: ['사이즈 비교하기', '주문하기'], deadlineIn: 4 },
+];
+let mockResultIndex = 0;
+
+/**
+ * 스와이프로 분류 (좌 ACT / 우 REF). 만든 캡처 id 를 돌려줘요
+ * ACT 는 바로 이미지 업로드 → 분석 (needs_upload: true)
+ */
+export function classifyShot(shot: { id: string; capturedAt: string; uri?: string }, sort: 'ACT' | 'REF') {
+  const id = `cap_${shot.id}_${Date.now()}`;
+  const base = capture({
+    id,
+    title: null,
+    file_key: `media:${shot.id}|Screenshot.jpg`,
+    uri: shot.uri,
+    status: sort === 'ACT' ? 'ANALYZING' : 'REFERENCE',
+    category: null,
+    job_step: sort === 'ACT' ? 'OCR' : undefined,
+    created_at: now(),
+    status_changed_at: now(),
+  });
+  commit([base, ...state.captures]);
+  if (sort === 'ACT') runMockAnalysis(id);
+  return id;
+}
+
+/** 분류 바꾸기 · 취소 (PATCH /captures/{id}/sort). NONE 이면 서버 기록 삭제 → 다시 미분류 */
+export function changeSort(captureId: string, sort: 'ACT' | 'REF' | 'NONE') {
+  if (sort === 'NONE') {
+    commit(state.captures.filter((c) => c.id !== captureId));
+    return;
+  }
+  if (sort === 'REF') {
+    patch([captureId], (c) => ({
+      ...c,
+      status: 'REFERENCE',
+      job_step: undefined,
+      title: null,
+      summary: null,
+      category: null,
+      facts: [],
+      guide: null,
+      checklist: [],
+      deadline: { status: 'NONE', date: null, label: null, box: null },
+      next_alarm_at: null,
+    }));
+    return;
+  }
+  patch([captureId], (c) => ({ ...c, status: 'ANALYZING', job_step: 'OCR' }));
+  runMockAnalysis(captureId);
+}
+
+/** 목업 분석: 단계를 넘기다가 예시 결과를 채워요 */
+function runMockAnalysis(id: string) {
+  const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
+  steps.forEach((step, i) => setTimeout(() => patch([id], (c) => (c.status === 'ANALYZING' ? { ...c, job_step: step } : c)), i * 900));
+  setTimeout(() => {
+    const r = MOCK_RESULTS[mockResultIndex++ % MOCK_RESULTS.length];
+    patch([id], (c) =>
+      c.status !== 'ANALYZING'
+        ? c
+        : {
+            ...c,
+            status: 'TODO',
+            job_step: undefined,
+            title: r.title,
+            summary: r.summary,
+            category: cat(r.category),
+            deadline:
+              r.deadlineIn === null
+                ? { status: 'NONE', date: null, label: null, box: null }
+                : { status: 'FOUND', date: dayOffset(r.deadlineIn), label: '마감', box: null },
+            guide: { title: '실천 가이드', lines: ['원본 내용을 보고 필요한 일을 정리했어요.'], preparations: [] },
+            checklist: checklist(id, r.steps, 0),
+            next_alarm_at: r.deadlineIn === null ? null : at9(dayOffset(Math.max(r.deadlineIn - 1, 0))),
+          },
+    );
+  }, steps.length * 900);
 }

@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -28,7 +28,10 @@ import {
   X,
 } from 'lucide-react-native';
 import { Button } from '../components/Button';
-import { BATCH_SIZE, UNSORTED_SCREENSHOTS, type Screenshot } from '../mock/screenshots';
+import type { Screenshot } from '../mock/screenshots';
+import type { RootStackParamList } from '../navigation/types';
+import { batchSizeFor, getSortSource, removeFromUnsorted } from '../store/home';
+import { changeSort, classifyShot } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
 
 type Decision = 'practice' | 'reference' | 'delete';
@@ -45,6 +48,11 @@ type BatchResult = {
 
 /** 이만큼 끌고 놓으면 분류돼요 */
 const SWIPE_THRESHOLD = 110;
+/**
+ * 위로 민 사진이 이만큼 모이면 분류 도중에도 삭제 팝업
+ * TODO(팀 결정): 명세서 '아직 정할 것' — 임시로 10장
+ */
+const DELETE_THRESHOLD = 10;
 /** 카드 가로:세로 비율 (폰 스크린샷 비율) */
 const CARD_RATIO = 0.47;
 
@@ -59,11 +67,21 @@ let coachSeen = false;
 
 export function SortScreen() {
   const nav = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'Sort'>>();
   const insets = useSafeAreaInsets();
+  const mode = route.params?.mode ?? 'new';
 
-  const [queue, setQueue] = useState<Screenshot[]>(UNSORTED_SCREENSHOTS);
-  const [batch, setBatch] = useState<Screenshot[]>(() => UNSORTED_SCREENSHOTS.slice(0, BATCH_SIZE));
+  const [batch, setBatch] = useState<Screenshot[]>(() => {
+    const source = getSortSource(mode);
+    return source.slice(0, route.params?.limit ?? batchSizeFor(source.length));
+  });
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  /** 사진 id → 서버에 만든 캡처 id (좌·우로 분류한 것만) */
+  const [captureIds, setCaptureIds] = useState<Record<string, string>>({});
+  /** 위로 민 사진의 처리 상태: 대기 / 기기에서 삭제됨 / 팝업에서 거부 */
+  const [deleteState, setDeleteState] = useState<Record<string, 'pending' | 'deleted' | 'canceled'>>({});
+  /** 삭제 팝업이 한 번 뜬 뒤에는 그 앞 사진으로 돌아갈 수 없어요 */
+  const [minIndex, setMinIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState<BatchResult | null>(null);
   const [showCoach, setShowCoach] = useState(!coachSeen);
@@ -75,58 +93,116 @@ export function SortScreen() {
   const isRevisit = index < decidedCount;
   const previousDecision = current ? decisions[current.id] : undefined;
 
-  const finishBatch = (finalDecisions: Record<string, Decision>) => {
-    const deleteIds = batch.filter((s) => finalDecisions[s.id] === 'delete').map((s) => s.id);
-
-    const complete = (deleteAllowed: boolean) => {
-      // TODO: practice → AI 분석 요청(팀원 B), reference → 참고함 저장, 허용된 delete → 기기에서 삭제
-      const handled = new Set(
-        batch.filter((s) => finalDecisions[s.id] !== 'delete' || deleteAllowed).map((s) => s.id),
-      );
-      const rest = queue.filter((s) => !handled.has(s.id));
-      const count = (d: Decision) => batch.filter((s) => finalDecisions[s.id] === d).length;
-      setQueue(rest);
-      setResult({
-        practice: count('practice'),
-        reference: count('reference'),
-        deleted: deleteAllowed ? deleteIds.length : 0,
-        canceled: deleteAllowed ? 0 : deleteIds.length,
-        remaining: rest.length,
-      });
+  /**
+   * 안드로이드 삭제 팝업 (명세서: 앱 내부 처리, 서버 호출 없음)
+   * TODO(기기 연동): Alert 대신 MediaLibrary.deleteAssetsAsync(ids) — 시스템 팝업이 직접 떠요
+   */
+  const askDelete = (ids: string[], then: (states: Record<string, 'deleted' | 'canceled'>) => void) => {
+    const settle = (allowed: boolean) => {
+      const states = Object.fromEntries(ids.map((id) => [id, allowed ? 'deleted' : 'canceled'] as const));
+      // 허용하면 기기 목록에서 사라지고, 거부하면 미분류로 남아 다음에 다시 보여요
+      if (allowed) removeFromUnsorted(ids);
+      setDeleteState((prev) => ({ ...prev, ...states }));
+      then(states);
     };
-
-    if (deleteIds.length === 0) {
-      complete(true);
-      return;
-    }
-    // 실제 앱에서는 이 자리에서 안드로이드 시스템 삭제 팝업이 떠요. (expo-media-library 연동 시 교체)
-    // TODO: 명세의 임계치 규칙(삭제 예정이 n장을 넘으면 분류 도중에도 팝업)은 아직 미구현
     Alert.alert(
-      `사진 ${deleteIds.length}장을 삭제할까요?`,
-      '기기에서 완전히 삭제돼요.',
+      `사진 ${ids.length}장을 삭제할까요?`,
+      '기기 휴지통으로 옮겨져요.',
       [
-        { text: '거부', style: 'cancel', onPress: () => complete(false) },
-        { text: '허용', style: 'destructive', onPress: () => complete(true) },
+        { text: '거부', style: 'cancel', onPress: () => settle(false) },
+        { text: '허용', style: 'destructive', onPress: () => settle(true) },
       ],
       { cancelable: false },
     );
   };
 
+  const pendingIds = (states = deleteState) => Object.keys(states).filter((id) => states[id] === 'pending');
+
+  /** 좌·우로 분류한 사진은 미분류 목록에서 빼요 (서버에는 스와이프할 때 이미 저장됨) */
+  const commitClassified = (ds = decisions) => {
+    removeFromUnsorted(Object.keys(ds).filter((id) => ds[id] !== 'delete'));
+  };
+
+  const finish = (ds: Record<string, Decision>, del: typeof deleteState) => {
+    const show = (finalDel: typeof deleteState) => {
+      commitClassified(ds);
+      // TODO(프론트1 · 알림 권한): 처음으로 실천 항목이 생겼을 때 여기서 알림 권한 요청 (명세서 권한 표)
+      const count = (d: Decision) => batch.filter((s) => ds[s.id] === d).length;
+      setResult({
+        practice: count('practice'),
+        reference: count('reference'),
+        deleted: Object.values(finalDel).filter((v) => v === 'deleted').length,
+        canceled: Object.values(finalDel).filter((v) => v === 'canceled').length,
+        remaining: getSortSource(mode).length,
+      });
+    };
+    const pending = pendingIds(del);
+    // 분류 끝: 삭제로 모은 사진이 1장 이상 남아 있으면 팝업
+    if (pending.length) askDelete(pending, (states) => show({ ...del, ...states }));
+    else show(del);
+  };
+
   const decide = (decision: Decision) => {
     if (!current) return;
+    const prev = decisions[current.id];
+    const prevCapture = captureIds[current.id];
+
+    // 서버 저장: 처음이면 classify, 이미 분류했으면 sort 변경
+    const nextCaptureIds = { ...captureIds };
+    if (prev !== decision) {
+      if (prevCapture) {
+        if (decision === 'delete') {
+          changeSort(prevCapture, 'NONE');
+          delete nextCaptureIds[current.id];
+        } else changeSort(prevCapture, decision === 'practice' ? 'ACT' : 'REF');
+      } else if (decision !== 'delete') {
+        nextCaptureIds[current.id] = classifyShot(current, decision === 'practice' ? 'ACT' : 'REF');
+      }
+    }
+    const nextDel = { ...deleteState };
+    if (decision === 'delete') nextDel[current.id] = 'pending';
+    else if (nextDel[current.id] === 'pending') delete nextDel[current.id];
+
     const nextDecisions = { ...decisions, [current.id]: decision };
     setDecisions(nextDecisions);
+    setCaptureIds(nextCaptureIds);
+    setDeleteState(nextDel);
+
     const nextIndex = index + 1;
-    if (nextIndex >= batch.length && Object.keys(nextDecisions).length === batch.length) {
-      finishBatch(nextDecisions);
+    const done = nextIndex >= batch.length && Object.keys(nextDecisions).length === batch.length;
+    const pending = pendingIds(nextDel);
+
+    if (done) {
+      finish(nextDecisions, nextDel);
+    } else if (pending.length >= DELETE_THRESHOLD) {
+      // 임계치 도달: 분류 도중에도 바로 팝업
+      askDelete(pending, () => {
+        setMinIndex(nextIndex);
+        setIndex(nextIndex);
+      });
     } else {
       setIndex(nextIndex);
     }
   };
 
+  const close = () => {
+    const leave = () => {
+      commitClassified();
+      nav.goBack();
+    };
+    // 분류 화면 닫기: 중간에 닫았는데 삭제로 모은 사진이 있으면 팝업 (명세서 제안)
+    const pending = pendingIds();
+    if (pending.length) askDelete(pending, leave);
+    else leave();
+  };
+
   const startNextBatch = () => {
-    setBatch(queue.slice(0, BATCH_SIZE));
+    const source = getSortSource(mode);
+    setBatch(source.slice(0, batchSizeFor(source.length)));
     setDecisions({});
+    setCaptureIds({});
+    setDeleteState({});
+    setMinIndex(0);
     setIndex(0);
     setResult(null);
   };
@@ -135,6 +211,15 @@ export function SortScreen() {
 
   if (result) {
     return <DoneView result={result} onNext={startNextBatch} onHome={() => nav.goBack()} />;
+  }
+
+  if (!current) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center', gap: 12 }]}>
+        <Text style={styles.doneTitle}>분류할 캡처가 없어요</Text>
+        <Button label="홈으로 가기" variant="secondary" onPress={() => nav.goBack()} style={{ paddingHorizontal: 24 }} />
+      </View>
+    );
   }
 
   return (
@@ -146,11 +231,11 @@ export function SortScreen() {
         <View style={styles.pager}>
           <Pressable
             onPress={() => setIndex((i) => i - 1)}
-            disabled={index === 0}
+            disabled={index <= minIndex}
             accessibilityLabel="이전 사진"
             style={styles.pagerButton}
           >
-            <ChevronLeft size={20} color={index === 0 ? colors.disabled : colors.text} strokeWidth={2} />
+            <ChevronLeft size={20} color={index <= minIndex ? colors.disabled : colors.text} strokeWidth={2} />
           </Pressable>
           <Text style={styles.pagerText}>
             {index + 1}
@@ -165,8 +250,7 @@ export function SortScreen() {
             <ChevronRight size={20} color={isRevisit ? colors.text : colors.disabled} strokeWidth={2} />
           </Pressable>
         </View>
-        {/* TODO: 나갈 때 지금까지 분류한 사진은 저장 */}
-        <Pressable onPress={() => nav.goBack()} accessibilityLabel="분류 그만하기" style={styles.headerSide}>
+        <Pressable onPress={close} accessibilityLabel="분류 그만하기" style={styles.headerSide}>
           <X size={22} color={colors.text} strokeWidth={1.8} />
         </Pressable>
       </View>
@@ -177,7 +261,7 @@ export function SortScreen() {
         ))}
       </View>
 
-      <DeleteHint swipe={swipe} />
+      <DeleteHint swipe={swipe} pending={pendingIds().length} />
 
       {isRevisit && (
         <View style={styles.revisitHint}>
@@ -185,14 +269,7 @@ export function SortScreen() {
         </View>
       )}
 
-      {current && (
-        <Deck
-          current={current}
-          next={next}
-          previousDecision={isRevisit ? previousDecision : undefined}
-          swipe={swipe}
-        />
-      )}
+      <Deck current={current} next={next} previousDecision={isRevisit ? previousDecision : undefined} swipe={swipe} />
 
       <View style={{ height: insets.bottom + 20 }} />
 
@@ -286,14 +363,16 @@ function SwipeBlobs({ swipe }: { swipe: Swipe }) {
 
 /* ───────── 위쪽 "기기에서 삭제" 안내 (밀면 빨간 알약으로 바뀜) ───────── */
 
-function DeleteHint({ swipe }: { swipe: Swipe }) {
+function DeleteHint({ swipe, pending }: { swipe: Swipe; pending: number }) {
   const p = swipe.progress.delete;
   const lightOpacity = p.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   return (
     <Pressable onPress={() => swipe.fly('delete')} accessibilityLabel="기기에서 삭제" style={styles.deleteHint}>
       <Animated.View style={[styles.deleteHintInner, { opacity: lightOpacity }]}>
         <ChevronUp size={14} color={colors.error} strokeWidth={2.2} />
-        <Text style={[styles.deleteHintText, { color: colors.error }]}>기기에서 삭제</Text>
+        <Text style={[styles.deleteHintText, { color: colors.error }]}>
+          {pending ? `기기에서 삭제 · ${pending}장 모음` : '기기에서 삭제'}
+        </Text>
       </Animated.View>
       <Animated.View style={[styles.deleteHintInner, styles.deleteHintFilled, { opacity: p }]}>
         <ChevronUp size={14} color="#fff" strokeWidth={2.2} />
@@ -468,7 +547,8 @@ function CoachOverlay({ onStart }: { onStart: () => void }) {
 function DoneView({ result, onNext, onHome }: { result: BatchResult; onNext: () => void; onHome: () => void }) {
   const insets = useSafeAreaInsets();
   const sortedCount = result.practice + result.reference + result.deleted + result.canceled;
-  const nextLabel = result.remaining > BATCH_SIZE ? `다음 ${BATCH_SIZE}장 분류하기` : `남은 ${result.remaining}장 분류하기`;
+  // 남은 사진이 12장 이하면 한 번에 전부, 그보다 많으면 10장 (명세서)
+  const nextLabel = result.remaining > 12 ? '다음 10장 분류하기' : `남은 ${result.remaining}장 분류하기`;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom + 12, paddingHorizontal: 20 }]}>
