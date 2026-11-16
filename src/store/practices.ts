@@ -3,7 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { MOCK_FAIL } from '../mock/failures';
 import * as api from '../services/api';
 import { USE_SERVER } from '../services/config';
-import { MediaLibrary } from '../services/native';
+import { ImageManipulator, MediaLibrary } from '../services/native';
 
 /* ═════════ API 명세서와 같은 모양의 데이터 (Capture 객체) ═════════
  * 서버 연동 시 이 타입 그대로 응답을 받아 넣으면 돼요.
@@ -1165,6 +1165,24 @@ async function pollAnalysis(captureId: string, jobId: number, firstDelay: number
   }));
 }
 
+/**
+ * 업로드용 파일 만들기: 기기 앨범 경로(file:// · content://)를 그대로 올리면 기기에 따라 읽기에 실패해서
+ * 요청이 나가지 못해요. 앱 캐시에 JPEG 로 다시 저장해서(용량도 줄어요) 올려요. 실패하면 원본으로 시도해요.
+ */
+async function prepareUpload(uri: string): Promise<string> {
+  if (!ImageManipulator) return uri;
+  try {
+    const result = await ImageManipulator.manipulateAsync(uri, [], {
+      compress: 0.85,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return result.uri;
+  } catch (error) {
+    console.warn('[moa] 업로드용 사진 변환에 실패해서 원본으로 시도해요', uri, error);
+    return uri;
+  }
+}
+
 /** 실천으로 분류한 사진을 올려 AI 분석을 요청하고, 끝날 때까지 진행 상태를 확인해요 */
 export async function startAnalysis(captureId: string | number, fileKey: string, imageUri?: string | null) {
   const id = String(captureId);
@@ -1176,7 +1194,10 @@ export async function startAnalysis(captureId: string | number, fileKey: string,
     // 아이폰의 ph:// 같은 주소는 업로드가 안 돼서, 기기에서 읽을 수 있는 파일 주소로 바꿔서 올려요
     const uri = (await resolveUri(fileKey)) ?? imageUri ?? state.captures.find((c) => c.id === id)?.uri;
     if (!uri) throw new Error('기기에서 사진을 찾지 못했어요. 사진 접근 권한을 확인해 주세요.');
-    const job = await api.requestAnalysis(id, uri);
+    const upload = await prepareUpload(uri);
+    console.log(`[moa] 분석 요청 POST ${api.apiBaseUrl}/captures/${id}/analysis (image=${upload})`);
+    const job = await api.requestAnalysis(id, upload);
+    console.log(`[moa] 분석 접수 job_id=${job.job_id} status=${job.status}`);
     await pollAnalysis(id, job.job_id, job.poll_after_ms);
   } catch (error) {
     patch([id], (c) => ({

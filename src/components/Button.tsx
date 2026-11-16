@@ -39,7 +39,8 @@ export function Button({ label, onPress, variant = 'primary', disabled, style }:
 
 const styles = StyleSheet.create({
   base: {
-    height: 50,
+    minHeight: 50,
+    paddingVertical: 8,
     borderRadius: radius.button,
     alignItems: 'center',
     justifyContent: 'center',
