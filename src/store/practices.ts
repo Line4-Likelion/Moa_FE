@@ -238,7 +238,7 @@ export function refreshAll(): Promise<void> {
       // 목록 API 에는 분석 중·실패 항목이 없어서, 앱이 추적 중인 것은 남겨 둬요
       const pending = state.captures.filter((c) => (c.status === 'ANALYZING' || c.status === 'FAILED') && !ids.has(c.id));
       setState({
-        categories: cats.map((c) => ({ id: String(c.id), name: c.name, is_custom: c.isCustom })),
+        categories: cats.map((c) => ({ id: String(c.id), name: c.name, is_custom: c.is_custom })),
         captures: [...pending, ...fromApi],
       });
       void fillUris();
@@ -614,7 +614,7 @@ export async function startAnalysis(captureId: string | number, fileKey: string,
     const uri = imageUri ?? existing?.uri ?? (await resolveUri(fileKey));
     if (!uri) throw new Error('기기에서 사진을 찾지 못했어요. 사진 접근 권한을 확인해 주세요.');
     const job = await api.requestAnalysis(id, uri);
-    await pollAnalysis(id, job.jobId, job.pollAfterMs);
+    await pollAnalysis(id, job.job_id, job.poll_after_ms);
   } catch (error) {
     patch([id], (c) => ({
       ...c,
@@ -642,7 +642,7 @@ export async function addCategory(name: string) {
   if (state.categories.some((c) => c.name === trimmed)) return false;
   try {
     const created = await api.createCategory(trimmed);
-    const category: Category = { id: String(created.id), name: created.name, is_custom: created.isCustom ?? true };
+    const category: Category = { id: String(created.id), name: created.name, is_custom: created.is_custom ?? true };
     // 서버 순서: 기본 → 내가 만든 것 → 기타
     const etc = state.categories.filter((c) => c.name === ETC_CATEGORY);
     const rest = state.categories.filter((c) => c.name !== ETC_CATEGORY);

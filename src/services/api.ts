@@ -236,7 +236,7 @@ export function cancelClassification(id: number) {
 
 /* ═════════ 카테고리 ═════════ */
 
-export type ServerCategory = { id: number; name: string; isCustom: boolean; todoCount: number };
+export type ServerCategory = { id: number; name: string; is_custom: boolean; todo_count: number };
 
 export async function getCategories() {
   const data = await request<{ categories: ServerCategory[] }>('/categories');
@@ -301,7 +301,7 @@ export function patchFacts(id: string, facts: { key: string; value: string | nul
   return request<ServerCapture>(`/captures/${id}/facts`, { method: 'PATCH', body: { facts } });
 }
 export function changeCaptureCategory(id: string, categoryId: number) {
-  return request<unknown>(`/captures/${id}/category`, { method: 'PATCH', body: { categoryId } });
+  return request<unknown>(`/captures/${id}/category`, { method: 'PATCH', body: { category_id: categoryId } });
 }
 export function deleteCapture(id: string) {
   return request<void>(`/captures/${id}`, { method: 'DELETE' });
@@ -319,8 +319,8 @@ export function getCompletionStats() {
 /* ═════════ AI 분석 (사진 업로드) ═════════ */
 
 export type AnalysisJob = {
-  jobId: number;
-  captureId: number;
+  job_id: number;
+  capture_id: number;
   status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
   step?: 'OCR' | 'CATEGORIZE' | 'DONE';
   error?: { code: string; message: string } | null;
@@ -338,7 +338,7 @@ export function requestAnalysis(captureId: number | string, imageUri: string) {
   const type = mimeOf(imageUri);
   const form = new FormData();
   form.append('image', { uri: imageUri, name: `capture.${type.split('/')[1]}`, type } as unknown as Blob);
-  return request<{ jobId: number; captureId: number; status: AnalysisJob['status']; pollAfterMs: number }>(
+  return request<{ job_id: number; capture_id: number; status: AnalysisJob['status']; poll_after_ms: number }>(
     `/captures/${captureId}/analysis`,
     { method: 'POST', body: form, timeoutMs: 60000 },
   );
