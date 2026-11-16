@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import * as MediaLibrary from 'expo-media-library/legacy';
+import { MediaLibrary } from '../services/native';
 import {
   Alert,
   Animated,
@@ -138,7 +138,7 @@ export function SortScreen() {
       [
         { text: '거부', style: 'cancel', onPress: () => complete(false) },
         { text: '삭제', style: 'destructive', onPress: async () => {
-          try { complete(await MediaLibrary.deleteAssetsAsync(deleteIds)); }
+          try { complete(MediaLibrary ? await MediaLibrary.deleteAssetsAsync(deleteIds) : false); }
           catch { Alert.alert('삭제 실패', '사진을 삭제하지 못했어요. 다시 분류해 주세요.'); complete(false); }
         } },
       ],

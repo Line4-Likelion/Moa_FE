@@ -8,7 +8,7 @@
  */
 
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { SecureStore } from './native';
 
 type BaseResponse<T> = { success: boolean; code: number | string; message: string; data: T };
 
@@ -61,17 +61,17 @@ export function clearSession() {
 /* 로그인 유지: 토큰을 기기의 보안 저장소(Keychain/Keystore)에 보관해요. 웹에서는 저장하지 않아요. */
 const ACCESS_KEY = 'moa.access_token';
 const REFRESH_KEY = 'moa.refresh_token';
-const canStore = Platform.OS !== 'web';
+const canStore = Platform.OS !== 'web' && !!SecureStore;
 
 async function persistTokens() {
   if (!canStore) return;
   try {
     if (accessToken && refreshToken) {
-      await SecureStore.setItemAsync(ACCESS_KEY, accessToken);
-      await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
+      await SecureStore!.setItemAsync(ACCESS_KEY, accessToken);
+      await SecureStore!.setItemAsync(REFRESH_KEY, refreshToken);
     } else {
-      await SecureStore.deleteItemAsync(ACCESS_KEY);
-      await SecureStore.deleteItemAsync(REFRESH_KEY);
+      await SecureStore!.deleteItemAsync(ACCESS_KEY);
+      await SecureStore!.deleteItemAsync(REFRESH_KEY);
     }
   } catch (error) {
     console.warn('[moa] 로그인 정보를 저장하지 못했어요', error);
@@ -83,8 +83,8 @@ export async function restoreSession(): Promise<boolean> {
   if (!canStore || !baseUrl) return false;
   try {
     const [access, refresh] = await Promise.all([
-      SecureStore.getItemAsync(ACCESS_KEY),
-      SecureStore.getItemAsync(REFRESH_KEY),
+      SecureStore!.getItemAsync(ACCESS_KEY),
+      SecureStore!.getItemAsync(REFRESH_KEY),
     ]);
     if (!access || !refresh) return false;
     accessToken = access;

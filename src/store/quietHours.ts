@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { SecureStore } from '../services/native';
 
 /**
  * 방해금지 시간 (시작 ~ 종료)
@@ -31,7 +31,7 @@ export function isValidTime(value: string) {
 export async function saveQuietHours(next: QuietHours) {
   state = next;
   listeners.forEach((l) => l());
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !SecureStore) return;
   try {
     await SecureStore.setItemAsync(KEY, JSON.stringify(next));
   } catch (error) {
@@ -41,7 +41,7 @@ export async function saveQuietHours(next: QuietHours) {
 
 /** 앱을 켤 때 저장된 값을 불러와요 */
 export async function loadQuietHours() {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || !SecureStore) return;
   try {
     const raw = await SecureStore.getItemAsync(KEY);
     if (!raw) return;

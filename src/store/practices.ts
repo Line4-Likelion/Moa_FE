@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { Alert, Platform } from 'react-native';
-import * as MediaLibrary from 'expo-media-library/legacy';
 import * as api from '../services/api';
+import { MediaLibrary } from '../services/native';
 
 /* ═════════ API 명세서와 같은 모양의 데이터 (Capture 객체) ═════════
  * 서버 응답(snake_case)을 그대로 앱에서 써요. 화면은 아래 훅·함수만 쓰면 되고,
@@ -193,7 +193,7 @@ function notifyError(error: unknown) {
 /** 기기 사진 주소 찾기 (file_key = 기기 사진 ID) */
 const uriCache = new Map<string, string | null>();
 async function resolveUri(fileKey: string): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web' || !MediaLibrary) return null;
   if (uriCache.has(fileKey)) return uriCache.get(fileKey) ?? null;
   try {
     const info = await MediaLibrary.getAssetInfoAsync(fileKey);

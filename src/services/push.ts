@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { Notifications } from './native';
+import type * as NotificationsTypes from 'expo-notifications';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
 import { deletePushToken, registerPushToken } from './api';
@@ -14,7 +15,7 @@ import { deletePushToken, registerPushToken } from './api';
  */
 
 // 앱이 켜져 있을 때도 알림을 보여줘요
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -27,7 +28,7 @@ let registeredToken: string | null = null;
 
 /** 알림 권한을 받고 FCM 토큰을 서버에 등록해요. 성공하면 true */
 export async function registerForPush(): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
+  if (Platform.OS === 'web' || !Notifications) return false;
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -80,9 +81,9 @@ function captureIdOf(data: Record<string, unknown> | undefined): string | null {
 /** 알림을 눌렀을 때(앱이 꺼져 있었던 경우 포함) 실천 상세로 이동해요 */
 export function usePushNavigation(navigation: NavigationContainerRefWithCurrent<RootStackParamList>) {
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    if (Platform.OS === 'web' || !Notifications) return;
 
-    const open = (response: Notifications.NotificationResponse | null) => {
+    const open = (response: NotificationsTypes.NotificationResponse | null) => {
       const id = captureIdOf(response?.notification.request.content.data);
       if (!id) return;
       // 로그인 정보가 복원되기 전에 눌렀어도 잠깐 기다렸다 이동해요

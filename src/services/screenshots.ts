@@ -1,9 +1,10 @@
 import { Platform } from 'react-native';
-import * as MediaLibrary from 'expo-media-library/legacy';
+import { MediaLibrary } from './native';
 import { getClassifications } from './api';
 import type { Screenshot } from '../mock/screenshots';
 
 export async function loadUnsortedScreenshots(): Promise<Screenshot[]> {
+  if (!MediaLibrary) throw new Error('이 앱 빌드에는 사진 접근 기능이 없어요. 개발용 앱을 새로 빌드해 주세요.');
   if (Platform.OS === 'web') throw new Error('스크린샷 불러오기는 모바일 앱에서 사용할 수 있어요.');
   const permission = await MediaLibrary.requestPermissionsAsync(false, ['photo']);
   if (!permission.granted) throw new Error('사진 접근 권한이 필요해요. 기기 설정에서 허용해 주세요.');
