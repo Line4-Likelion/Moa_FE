@@ -6,6 +6,7 @@ import { Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import type { Screenshot } from '../mock/screenshots';
 import { loadUnsortedScreenshots } from '../services/screenshots';
+import { completePractices, daysLeftOf, isSnoozed, useCaptures, type Capture } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
 
 /* ───────── 목업 데이터 (갤러리 / API 연동 시 이 부분만 교체) ───────── */
@@ -15,26 +16,38 @@ import { colors, fonts, radius } from '../theme';
 const PREVIEW_SLOTS = 5;
 
 type Reminder = { id: string; title: string };
-const REMINDERS: Reminder[] = [
-  { id: 'r1', title: '연남 소바실 예약' },
-  { id: 'r2', title: '4호선톤 지원' },
-  { id: 'r3', title: '자격증 시험 접수' },
-];
 
 /** 하루 기록. done = 그날 실천 완료한 개수, sorted = 분류만 한 날 */
 type DayRecord = { done?: number; sorted?: boolean };
 
-/** 이번 달 1일~오늘까지 예시 기록을 만들어요. (실제로는 서버에서 받아온 값) */
-function buildMockRecords(today: Date): Record<string, DayRecord> {
-  const pattern: DayRecord[] = [
-    { sorted: true }, { done: 1 }, { sorted: true }, {}, { done: 2 }, { sorted: true }, { done: 1 },
-    { sorted: true }, { sorted: true }, { done: 2 }, { sorted: true }, { done: 1 }, { sorted: true },
-  ];
+/**
+ * 서버의 캡처로 달력 기록을 만들어요.
+ * done = 그날 완료한 실천 개수(완료 시각 기준), sorted = 그날 분류한 사진이 있음(분류 시각 기준)
+ */
+function buildRecords(captures: Capture[]): Record<string, DayRecord> {
   const records: Record<string, DayRecord> = {};
-  for (let d = 1; d < today.getDate(); d++) {
-    records[dateKey(today.getFullYear(), today.getMonth(), d)] = pattern[(d - 1) % pattern.length];
+  const keyOf = (iso: string) => {
+    const d = new Date(iso);
+    return dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+  for (const c of captures) {
+    const sortedKey = keyOf(c.created_at);
+    records[sortedKey] = { ...records[sortedKey], sorted: true };
+    if (c.status === 'DONE') {
+      const doneKey = keyOf(c.status_changed_at);
+      records[doneKey] = { ...records[doneKey], done: (records[doneKey]?.done ?? 0) + 1 };
+    }
   }
   return records;
+}
+
+/** 오늘 챙길 실천: 보류 아닌 실천 대기 중 마감이 가까운 순 3개 */
+function pickReminders(captures: Capture[]): Reminder[] {
+  return captures
+    .filter((c) => c.status === 'TODO' && !isSnoozed(c))
+    .sort((a, b) => (daysLeftOf(a) ?? Infinity) - (daysLeftOf(b) ?? Infinity))
+    .slice(0, 3)
+    .map((c) => ({ id: c.id, title: c.title ?? '제목 없음' }));
 }
 
 /* ───────── 달력 유틸 ───────── */
@@ -66,7 +79,9 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   const today = useMemo(() => new Date(), []);
-  const records = useMemo(() => buildMockRecords(today), [today]);
+  const captures = useCaptures();
+  const records = useMemo(() => buildRecords(captures), [captures]);
+  const reminders = useMemo(() => pickReminders(captures), [captures]);
 
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
@@ -75,7 +90,11 @@ export function HomeScreen() {
   const [reload, setReload] = useState(0);
   const [viewMonth, setViewMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
 
-  const toggleReminder = (id: string) => setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  // 체크하면 실천을 완료 처리해요 (실천함에서 되돌릴 수 있어요)
+  const toggleReminder = (id: string) => {
+    setChecked((prev) => ({ ...prev, [id]: true }));
+    completePractices([id]);
+  };
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -113,7 +132,7 @@ export function HomeScreen() {
       />
 
       <ReminderCard
-        reminders={REMINDERS}
+        reminders={reminders}
         checked={checked}
         onToggle={toggleReminder}
         onSeeAll={() => nav.navigate('Tabs', { screen: 'Practice' })}

@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 // 쓰는 굵기만 개별 import (전체 import 시 안 쓰는 폰트까지 앱 용량에 포함됨)
 import { NotoSansKR_400Regular } from '@expo-google-fonts/noto-sans-kr/400Regular';
@@ -29,7 +29,8 @@ import {
   PhotoPermissionScreen,
 } from './src/screens/PermissionScreens';
 import { ReminderSettingsScreen, SettingsSaveFailedScreen } from './src/screens/ReminderScreens';
-import { onSessionExpired } from './src/services/api';
+import { onSessionExpired, restoreSession } from './src/services/api';
+import { registerForPush, usePushNavigation } from './src/services/push';
 import { refreshAll, resetStore } from './src/store/practices';
 import { colors } from './src/theme';
 
@@ -44,6 +45,11 @@ const navTheme = {
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 function Tabs() {
+  // 로그인한 뒤 알림 권한을 받고 푸시 토큰을 서버에 등록해요
+  useEffect(() => {
+    void registerForPush();
+  }, []);
+
   return (
     <Tab.Navigator
       tabBar={(props) => <TabBar {...props} />}
@@ -67,6 +73,13 @@ export default function App() {
     NotoSerifKR_600SemiBold,
   });
 
+  // 저장된 로그인이 있으면 로그인 화면을 건너뛰어요
+  const [startRoute, setStartRoute] = useState<'Login' | 'Tabs' | null>(null);
+  useEffect(() => {
+    void restoreSession().then((ok) => setStartRoute(ok ? 'Tabs' : 'Login'));
+  }, []);
+  usePushNavigation(navigationRef);
+
   useEffect(() => {
     // 로그인이 만료돼 다시 받지도 못하면 로그인 화면으로 보내요
     onSessionExpired(() => {
@@ -76,14 +89,14 @@ export default function App() {
     return () => onSessionExpired(null);
   }, []);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || !startRoute) return null;
 
   return (
     <SafeAreaProvider>
       <NavigationContainer theme={navTheme} ref={navigationRef}>
         <StatusBar style="dark" />
         <Stack.Navigator
-          initialRouteName="Login"
+          initialRouteName={startRoute}
           screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
         >
           <Stack.Screen name="Login" component={LoginScreen} />

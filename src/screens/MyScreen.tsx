@@ -10,6 +10,7 @@ import { Screen } from '../components/Screen';
 import { Card, Caption, Divider, Lines, SettingItem, StatusChip } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
 import { DEFAULT_ALARM_SETTINGS, loadAccount, resetAccount, saveAlarmSettings, useAccount } from '../store/account';
+import { unregisterPush } from '../services/push';
 import { resetStore } from '../store/practices';
 import { colors, fonts } from '../theme';
 
@@ -39,6 +40,7 @@ export function MyScreen({ route }: Props) {
 
   const onConfirmLogout = async () => {
     setLogoutOpen(false);
+    await unregisterPush(); // 로그아웃 전에 이 기기의 푸시 토큰을 지워요 (토큰이 필요해서 순서가 중요해요)
     await logout();
     resetStore();
     resetAccount();

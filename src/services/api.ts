@@ -7,6 +7,9 @@
  * - 서버 주소: .env.local 의 EXPO_PUBLIC_API_URL
  */
 
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+
 type BaseResponse<T> = { success: boolean; code: number | string; message: string; data: T };
 
 export type AuthUser = { id: string; email: string; nickname: string };
@@ -52,6 +55,48 @@ export function clearSession() {
   accessToken = null;
   refreshToken = null;
   currentUser = null;
+  void persistTokens();
+}
+
+/* 로그인 유지: 토큰을 기기의 보안 저장소(Keychain/Keystore)에 보관해요. 웹에서는 저장하지 않아요. */
+const ACCESS_KEY = 'moa.access_token';
+const REFRESH_KEY = 'moa.refresh_token';
+const canStore = Platform.OS !== 'web';
+
+async function persistTokens() {
+  if (!canStore) return;
+  try {
+    if (accessToken && refreshToken) {
+      await SecureStore.setItemAsync(ACCESS_KEY, accessToken);
+      await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
+    } else {
+      await SecureStore.deleteItemAsync(ACCESS_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_KEY);
+    }
+  } catch (error) {
+    console.warn('[moa] 로그인 정보를 저장하지 못했어요', error);
+  }
+}
+
+/** 앱을 다시 켰을 때 저장된 로그인을 복원해요. 복원되면 true (토큰이 만료됐으면 재발급을 시도해요) */
+export async function restoreSession(): Promise<boolean> {
+  if (!canStore || !baseUrl) return false;
+  try {
+    const [access, refresh] = await Promise.all([
+      SecureStore.getItemAsync(ACCESS_KEY),
+      SecureStore.getItemAsync(REFRESH_KEY),
+    ]);
+    if (!access || !refresh) return false;
+    accessToken = access;
+    refreshToken = refresh;
+    await getMe(); // 만료됐으면 request() 가 재발급해서 이어가요
+    return true;
+  } catch (error) {
+    // 서버에 닿지 못한 경우(오프라인)는 로그인 정보를 지우지 않고 그대로 들어가요
+    if (error instanceof ApiError && error.status === 0 && accessToken) return true;
+    clearSession();
+    return false;
+  }
 }
 /** 로그인이 만료돼 다시 발급도 못 받았을 때 (로그인 화면으로 보내는 용도) */
 export function onSessionExpired(handler: (() => void) | null) {
@@ -76,6 +121,7 @@ async function reissue(): Promise<boolean> {
       const body = (await response.json()) as BaseResponse<AuthResponse>;
       accessToken = body.data.access_token;
       refreshToken = body.data.refresh_token;
+      void persistTokens();
       return true;
     } catch {
       return false;
@@ -138,6 +184,7 @@ export async function authenticate(path: '/auth/login' | '/auth/signup', payload
   accessToken = data.access_token;
   refreshToken = data.refresh_token;
   currentUser = data.user ?? null;
+  await persistTokens();
   return currentUser;
 }
 
