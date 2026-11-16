@@ -31,6 +31,7 @@ import {
 import { ReminderSettingsScreen, SettingsSaveFailedScreen } from './src/screens/ReminderScreens';
 import { onSessionExpired, restoreSession } from './src/services/api';
 import { registerForPush, usePushNavigation } from './src/services/push';
+import { loadQuietHours } from './src/store/quietHours';
 import { refreshAll, resetStore } from './src/store/practices';
 import { colors } from './src/theme';
 
@@ -76,6 +77,7 @@ export default function App() {
   // 저장된 로그인이 있으면 로그인 화면을 건너뛰어요
   const [startRoute, setStartRoute] = useState<'Login' | 'Tabs' | null>(null);
   useEffect(() => {
+    void loadQuietHours();
     void restoreSession().then((ok) => setStartRoute(ok ? 'Tabs' : 'Login'));
   }, []);
   usePushNavigation(navigationRef);

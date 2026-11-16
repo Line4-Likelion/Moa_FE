@@ -7,6 +7,7 @@ import { Card, FormField, Lines, OptionRow, SettingItem, StatusChip } from '../c
 import type { RootStackParamList } from '../navigation/types';
 import { errorMessage } from '../services/api';
 import { DEFAULT_ALARM_SETTINGS, loadAccount, saveAlarmSettings, useAccount } from '../store/account';
+import { isValidTime, saveQuietHours, useQuietHours } from '../store/quietHours';
 import { colors, fonts } from '../theme';
 
 const INTERVALS = [
@@ -23,9 +24,10 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
   const settings = account.settings ?? DEFAULT_ALARM_SETTINGS;
   const [hours, setHours] = useState(settings.intervalHours);
   const [dnd, setDnd] = useState(settings.dnd);
-  // TODO(백엔드 확인): 서버에는 방해금지 시작·종료 시간 필드가 없어서 이 값은 저장되지 않아요
-  const [start, setStart] = useState('22:00');
-  const [end, setEnd] = useState('08:00');
+  // 방해금지 시간은 서버에 필드가 없어서 이 기기에만 저장해요 (프론트 전용)
+  const quiet = useQuietHours();
+  const [start, setStart] = useState(quiet.start);
+  const [end, setEnd] = useState(quiet.end);
   const [saving, setSaving] = useState(false);
 
   // 서버 값이 늦게 도착하면 화면 값도 맞춰요
@@ -43,8 +45,13 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
 
   const save = async () => {
     if (saving) return;
+    if (dnd && (!isValidTime(start) || !isValidTime(end))) {
+      Alert.alert('시간을 확인해 주세요', '시작·종료 시간은 22:00처럼 입력해 주세요.');
+      return;
+    }
     setSaving(true);
     try {
+      if (dnd) await saveQuietHours({ start, end });
       await saveAlarmSettings({ ...settings, intervalHours: hours, dnd });
       navigation.navigate('Tabs', { screen: 'My', params: { variant: 'saved' } });
     } catch (error) {

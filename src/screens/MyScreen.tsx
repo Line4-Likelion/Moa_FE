@@ -11,6 +11,7 @@ import { Card, Caption, Divider, Lines, SettingItem, StatusChip } from '../compo
 import type { TabParamList } from '../navigation/types';
 import { DEFAULT_ALARM_SETTINGS, loadAccount, resetAccount, saveAlarmSettings, useAccount } from '../store/account';
 import { unregisterPush } from '../services/push';
+import { useQuietHours } from '../store/quietHours';
 import { resetStore } from '../store/practices';
 import { colors, fonts } from '../theme';
 
@@ -72,6 +73,8 @@ function DefaultView({
   onLogout: () => void;
 }) {
   const navigation = useNavigation();
+  const quiet = useQuietHours();
+  const range = `${quiet.start} – ${quiet.end}`;
   const goReminder = () => navigation.navigate('ReminderSettings');
   const [pendingDnd, setPendingDnd] = useState<boolean | null>(null);
   const dnd = pendingDnd ?? settings.dnd;
@@ -119,7 +122,7 @@ function DefaultView({
           label="방해금지"
           value={dnd}
           onValueChange={toggleDnd}
-          description={dnd ? '22:00 – 08:00 적용 중' : '시간 설정 22:00 – 08:00 · 현재 적용 안 함'}
+          description={dnd ? `${range} 적용 중` : `시간 설정 ${range} · 현재 적용 안 함`}
           status={dnd ? '켜짐' : '꺼짐'}
         />
         <Divider />
