@@ -1,11 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 // 쓰는 굵기만 개별 import (전체 import 시 안 쓰는 폰트까지 앱 용량에 포함됨)
 import { NotoSansKR_400Regular } from '@expo-google-fonts/noto-sans-kr/400Regular';
 import { NotoSansKR_500Medium } from '@expo-google-fonts/noto-sans-kr/500Medium';
 import { NotoSansKR_700Bold } from '@expo-google-fonts/noto-sans-kr/700Bold';
 import { NotoSerifKR_600SemiBold } from '@expo-google-fonts/noto-serif-kr/600SemiBold';
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -29,6 +30,10 @@ import {
   PhotoPermissionScreen,
 } from './src/screens/PermissionScreens';
 import { ReminderSettingsScreen, SettingsSaveFailedScreen } from './src/screens/ReminderScreens';
+import { onSessionExpired, restoreSession } from './src/services/api';
+import { registerForPush, usePushNavigation } from './src/services/push';
+import { loadQuietHours } from './src/store/quietHours';
+import { refreshAll, resetStore } from './src/store/practices';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,9 +44,21 @@ const navTheme = {
   colors: { ...DefaultTheme.colors, background: colors.bg, card: colors.bg, text: colors.text, border: colors.border },
 };
 
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
 function Tabs() {
+  // 로그인한 뒤 알림 권한을 받고 푸시 토큰을 서버에 등록해요
+  useEffect(() => {
+    void registerForPush();
+  }, []);
+
   return (
-    <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      tabBar={(props) => <TabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+      // 탭을 열 때마다 서버의 최신 목록을 받아와요 (로그인 직후 첫 화면 포함)
+      screenListeners={{ focus: () => void refreshAll() }}
+    >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Practice" component={PracticeScreen} />
       <Tab.Screen name="Archive" component={ArchiveScreen} />
@@ -58,14 +75,31 @@ export default function App() {
     NotoSerifKR_600SemiBold,
   });
 
-  if (!fontsLoaded) return null;
+  // 저장된 로그인이 있으면 로그인 화면을 건너뛰어요
+  const [startRoute, setStartRoute] = useState<'Login' | 'Tabs' | null>(null);
+  useEffect(() => {
+    void loadQuietHours();
+    void restoreSession().then((ok) => setStartRoute(ok ? 'Tabs' : 'Login'));
+  }, []);
+  usePushNavigation(navigationRef);
+
+  useEffect(() => {
+    // 로그인이 만료돼 다시 받지도 못하면 로그인 화면으로 보내요
+    onSessionExpired(() => {
+      resetStore();
+      if (navigationRef.isReady()) navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+    });
+    return () => onSessionExpired(null);
+  }, []);
+
+  if (!fontsLoaded || !startRoute) return null;
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer theme={navTheme}>
+      <NavigationContainer theme={navTheme} ref={navigationRef}>
         <StatusBar style="dark" />
         <Stack.Navigator
-          initialRouteName="Login"
+          initialRouteName={startRoute}
           screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
         >
           <Stack.Screen name="Login" component={LoginScreen} />

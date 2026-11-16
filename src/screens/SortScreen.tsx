@@ -31,7 +31,7 @@ import { Button } from '../components/Button';
 import type { Screenshot } from '../mock/screenshots';
 import type { RootStackParamList } from '../navigation/types';
 import { batchSizeFor, getSortSource, removeFromUnsorted } from '../store/home';
-import { changeSort, classifyShot } from '../store/practices';
+import { changeSort, classifyShot, registerClassified } from '../store/practices';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { cancelClassification, changeClassification, saveClassification } from '../services/api';
 import { USE_SERVER } from '../services/config';
@@ -173,6 +173,9 @@ export function SortScreen() {
     const prev = decisions[current.id];
     const prevCapture = captureIds[current.id];
 
+    // 서버 분류 기록 id (서버 모드에서는 캡처 id 와 같아요)
+    let serverRecordId: number | undefined = serverIds[current.id];
+
     // 서버 모드: 서버에 먼저 저장하고, 성공해야 다음 사진으로 넘어가요
     if (USE_SERVER && prev !== decision) {
       saving.current = true;
@@ -188,6 +191,7 @@ export function SortScreen() {
         } else {
           const value = decision === 'practice' ? 'PRACTICE' : 'REFERENCE';
           const record = recordId ? await changeClassification(recordId, value) : await saveClassification(current.id, value);
+          serverRecordId = record.id;
           setServerIds((old) => ({ ...old, [current.id]: record.id }));
         }
       } catch {
@@ -209,7 +213,9 @@ export function SortScreen() {
         } else changeSort(prevCapture, decision === 'practice' ? 'ACT' : 'REF');
       } else if (decision !== 'delete') {
         try {
-          nextCaptureIds[current.id] = classifyShot(current, decision === 'practice' ? 'ACT' : 'REF');
+          const sort = decision === 'practice' ? 'ACT' : 'REF';
+          nextCaptureIds[current.id] =
+            USE_SERVER && serverRecordId !== undefined ? registerClassified(serverRecordId, current, sort) : classifyShot(current, sort);
         } catch {
           // 저장 실패 (500): 카드는 그대로 두고 재시도 안내 (명세서: 화면의 선택은 유지)
           setSaveError(decision);

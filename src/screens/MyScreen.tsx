@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Clock3, Sprout } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { LogoutSheet } from '../components/LogoutSheet';
-import { clearSession } from '../services/api';
+import { errorMessage, logout, type AlarmSettings, type AuthUser } from '../services/api';
 import { Screen } from '../components/Screen';
 import { Card, Caption, Divider, Lines, SettingItem, StatusChip } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
+import { DEFAULT_ALARM_SETTINGS, loadAccount, resetAccount, saveAlarmSettings, useAccount } from '../store/account';
+import { unregisterPush } from '../services/push';
+import { useQuietHours } from '../store/quietHours';
+import { resetStore } from '../store/practices';
 import { colors, fonts } from '../theme';
 
 type Props = BottomTabScreenProps<TabParamList, 'My'>;
@@ -17,39 +21,75 @@ const openSystemSettings = () => Linking.openSettings();
 
 /** 08 마이 · 알림 설정 / S12A 프로필 조회 오류 / 19B 변경된 설정 저장 상태 / 17 로그아웃 확인 */
 export function MyScreen({ route }: Props) {
-  const variant = route.params?.variant ?? 'default';
   const navigation = useNavigation();
+  const account = useAccount();
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadAccount();
+    }, []),
+  );
 
   useEffect(() => {
     if (route.params?.logout) setLogoutOpen(true);
   }, [route.params?.logout]);
 
+  const settings = account.settings ?? DEFAULT_ALARM_SETTINGS;
+  // 서버에서 프로필을 못 받았거나(오류) 개발용 목차에서 error 를 고른 경우
+  const variant = route.params?.variant === 'error' || account.profileFailed ? 'error' : (route.params?.variant ?? 'default');
+
+  const onConfirmLogout = async () => {
+    setLogoutOpen(false);
+    await unregisterPush(); // 로그아웃 전에 이 기기의 푸시 토큰을 지워요 (토큰이 필요해서 순서가 중요해요)
+    await logout();
+    resetStore();
+    resetAccount();
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
   return (
     <>
       <Screen title="마이" hasTabBar contentStyle={{ gap: variant === 'default' ? 12 : 16 }}>
-        {variant === 'default' && <DefaultView onLogout={() => setLogoutOpen(true)} />}
-        {variant === 'error' && <ErrorView />}
-        {variant === 'saved' && <SavedView />}
+        {variant === 'default' && (
+          <DefaultView profile={account.profile} settings={settings} onLogout={() => setLogoutOpen(true)} />
+        )}
+        {variant === 'error' && <ErrorView settings={settings} onRetry={() => void loadAccount()} />}
+        {variant === 'saved' && <SavedView profile={account.profile} settings={settings} />}
       </Screen>
-      <LogoutSheet
-        visible={logoutOpen}
-        onCancel={() => setLogoutOpen(false)}
-        onConfirm={() => {
-          setLogoutOpen(false);
-          clearSession();
-          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-        }}
-      />
+      <LogoutSheet visible={logoutOpen} onCancel={() => setLogoutOpen(false)} onConfirm={onConfirmLogout} />
     </>
   );
 }
 
 /* ───────── 08 기본 ───────── */
-function DefaultView({ onLogout }: { onLogout: () => void }) {
+function DefaultView({
+  profile,
+  settings,
+  onLogout,
+}: {
+  profile: AuthUser | null;
+  settings: AlarmSettings;
+  onLogout: () => void;
+}) {
   const navigation = useNavigation();
+  const quiet = useQuietHours();
+  const range = `${quiet.start} – ${quiet.end}`;
   const goReminder = () => navigation.navigate('ReminderSettings');
-  const [dnd, setDnd] = useState(false);
+  const [pendingDnd, setPendingDnd] = useState<boolean | null>(null);
+  const dnd = pendingDnd ?? settings.dnd;
+
+  // 방해금지는 바로 저장해요. 실패하면 원래 값으로 돌아가요
+  const toggleDnd = async (value: boolean) => {
+    setPendingDnd(value);
+    try {
+      await saveAlarmSettings({ ...settings, dnd: value });
+    } catch (error) {
+      Alert.alert('설정을 저장하지 못했어요', errorMessage(error));
+    } finally {
+      setPendingDnd(null);
+    }
+  };
 
   return (
     <>
@@ -59,8 +99,8 @@ function DefaultView({ onLogout }: { onLogout: () => void }) {
             <Sprout size={22} color={colors.primary} strokeWidth={1.5} />
           </View>
           <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.name}>모아하는 하루</Text>
-            <Caption>moa.sample@example.com</Caption>
+            <Text style={styles.name}>{profile?.nickname ?? ' '}</Text>
+            <Caption>{profile?.email ?? ' '}</Caption>
           </View>
         </View>
       </Card>
@@ -75,20 +115,20 @@ function DefaultView({ onLogout }: { onLogout: () => void }) {
         <Pressable onPress={goReminder} style={styles.infoRow}>
           <Clock3 size={18} color={colors.textSub} strokeWidth={1.5} />
           <Text style={styles.infoLabel}>주기</Text>
-          <Text style={styles.infoValue}>{'24시간 뒤  ›'}</Text>
+          <Text style={styles.infoValue}>{`${settings.intervalHours}시간 뒤  ›`}</Text>
         </Pressable>
         <Divider />
         <SettingItem
           label="방해금지"
           value={dnd}
-          onValueChange={setDnd}
-          description={dnd ? '22:00 – 08:00 적용 중' : '시간 설정 22:00 – 08:00 · 현재 적용 안 함'}
+          onValueChange={toggleDnd}
+          description={dnd ? `${range} 적용 중` : `시간 설정 ${range} · 현재 적용 안 함`}
           status={dnd ? '켜짐' : '꺼짐'}
         />
         <Divider />
         <SettingItem
           label="위치 기반 알림"
-          value={false}
+          value={settings.locationAlarmEnabled}
           disabled
           onDisabledPress={() => navigation.navigate('LocationPermission')}
           description="위치 권한을 허용해야 켤 수 있어요."
@@ -119,18 +159,18 @@ function DefaultView({ onLogout }: { onLogout: () => void }) {
 }
 
 /* ───────── S12A 프로필 조회 오류 ───────── */
-function ErrorView() {
+function ErrorView({ settings, onRetry }: { settings: AlarmSettings; onRetry: () => void }) {
   return (
     <>
       <Card tone="error">
         <Text style={styles.errorTitle}>프로필을 불러오지 못했어요</Text>
         <Lines size={12} lines={['닉네임과 이메일을 확인할 수 없어요.', '네트워크 연결을 확인한 뒤 다시 시도해 주세요.']} />
       </Card>
-      <Button label="프로필 다시 불러오기" variant="secondary" />
+      <Button label="프로필 다시 불러오기" variant="secondary" onPress={onRetry} />
       <Card>
         <Text style={styles.cardTitle}>저장된 알림 설정</Text>
-        <Text style={styles.body}>리마인드 · 24시간 뒤</Text>
-        <SettingItem label="방해금지" value={false} status="꺼짐" />
+        <Text style={styles.body}>{`리마인드 · ${settings.intervalHours}시간 뒤`}</Text>
+        <SettingItem label="방해금지" value={settings.dnd} status={settings.dnd ? '켜짐' : '꺼짐'} />
         <SettingItem
           label="위치 기반 알림"
           value={false}
@@ -148,21 +188,26 @@ function ErrorView() {
 }
 
 /* ───────── 19B 변경된 설정 저장 상태 ───────── */
-function SavedView() {
+function SavedView({ profile, settings }: { profile: AuthUser | null; settings: AlarmSettings }) {
   return (
     <>
       <Card>
-        <Text style={[styles.name, { lineHeight: 25.5 }]}>모아하는 하루</Text>
-        <Caption>moa.sample@example.com</Caption>
+        <Text style={[styles.name, { lineHeight: 25.5 }]}>{profile?.nickname ?? ' '}</Text>
+        <Caption>{profile?.email ?? ' '}</Caption>
       </Card>
       <Card>
         <Text style={styles.cardTitle}>리마인드 설정 · 변경</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>주기</Text>
-          <Text style={styles.infoValue}>12시간 뒤</Text>
+          <Text style={styles.infoValue}>{`${settings.intervalHours}시간 뒤`}</Text>
         </View>
         <Divider />
-        <SettingItem label="방해금지" value description="22:00 – 08:00 적용 중" status="켜짐" />
+        <SettingItem
+          label="방해금지"
+          value={settings.dnd}
+          description={settings.dnd ? '22:00 – 08:00 적용 중' : '현재 적용 안 함'}
+          status={settings.dnd ? '켜짐' : '꺼짐'}
+        />
         <Divider />
         <SettingItem
           label="위치 기반 알림"

@@ -1,5 +1,9 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
+import { Alert, Platform } from 'react-native';
 import { MOCK_FAIL } from '../mock/failures';
+import * as api from '../services/api';
+import { USE_SERVER } from '../services/config';
+import { MediaLibrary } from '../services/native';
 
 /* ═════════ API 명세서와 같은 모양의 데이터 (Capture 객체) ═════════
  * 서버 연동 시 이 타입 그대로 응답을 받아 넣으면 돼요.
@@ -48,6 +52,10 @@ export type Capture = {
   uri?: string;
   /** 앱 전용: 분석 중일 때 진행 단계 (GET /analysis-jobs 의 step) */
   job_step?: AnalysisStep;
+  /** 앱 전용(서버): 목록 응답의 체크리스트 진행도. 상세를 받기 전에 진행 막대를 그리는 데 써요 */
+  progress?: { done: number; total: number };
+  /** 앱 전용(서버): 상세(핵심 정보·가이드·체크리스트)를 받아왔는지 */
+  detail_loaded?: boolean;
 };
 
 /** 분석 단계 (GET /analysis-jobs 의 step) */
@@ -62,7 +70,7 @@ export const ANALYSIS_STEP_LABEL: Record<AnalysisStep, string> = {
 /* ═════════ 카테고리 ═════════ */
 
 // TODO(백엔드 확인): AI에게 주는 카테고리 목록과 맞춰야 해요
-const BASE: Category[] = [
+const MOCK_BASE: Category[] = [
   { id: 'cat_food', name: '맛집', is_custom: false },
   { id: 'cat_cafe', name: '카페', is_custom: false },
   { id: 'cat_shop', name: '쇼핑', is_custom: false },
@@ -71,7 +79,14 @@ const BASE: Category[] = [
   { id: 'cat_travel', name: '여행', is_custom: false },
   { id: 'cat_study', name: '공부', is_custom: false },
 ];
-const ETC: Category = { id: 'cat_etc', name: '기타', is_custom: false };
+/** 서버가 모든 사용자에게 기본으로 만들어 주는 카테고리 (백엔드 DefaultCategory 와 같아야 해요) */
+const SERVER_BASE: Category[] = ['패션', '맛집', '여행', '레시피', '정보', '생활'].map((name) => ({
+  id: `default:${name}`,
+  name,
+  is_custom: false,
+}));
+const BASE: Category[] = USE_SERVER ? SERVER_BASE : MOCK_BASE;
+const ETC: Category = { id: USE_SERVER ? 'default:기타' : 'cat_etc', name: '기타', is_custom: false };
 
 export const BASE_CATEGORIES = BASE.map((c) => c.name);
 export const ETC_CATEGORY = ETC.name;
@@ -305,14 +320,14 @@ const MOCK_MODE = 'full' as MockMode;
 const INITIAL: Capture[] =
   MOCK_MODE === 'empty' ? [] : MOCK_MODE === 'holdOnly' ? SEED.filter((c) => isSnoozed(c)) : SEED;
 
-type State = { captures: Capture[]; customCategories: Category[] };
+type State = { captures: Capture[]; customCategories: Category[]; serverCategories: Category[] | null };
 
 /** 서버가 보관하는 AI 원래 값 (facts 를 value: null 로 PATCH 하면 이 값으로 되돌아가요). 목업용 */
 const aiOriginal = new Map<string, string | null>(
   INITIAL.flatMap((c) => c.facts.map((f) => [`${c.id}:${f.key}`, f.value] as [string, string | null])),
 );
 
-let state: State = { captures: INITIAL, customCategories: [] };
+let state: State = { captures: USE_SERVER ? [] : INITIAL, customCategories: [], serverCategories: null };
 const listeners = new Set<() => void>();
 
 function setState(next: State) {
@@ -350,11 +365,21 @@ export function useCaptures() {
   return useSyncExternalStore(subscribe, () => state.captures);
 }
 export function useCapture(id: string) {
-  return useSyncExternalStore(subscribe, () => state.captures.find((c) => c.id === id));
+  const capture = useSyncExternalStore(subscribe, () => state.captures.find((c) => c.id === id));
+  // 서버 모드: 상세는 화면을 열 때 한 번 받아와요
+  useEffect(() => {
+    if (USE_SERVER && id) void ensureDetail(id);
+  }, [id]);
+  return capture;
+}
+/** 지금 쓰는 카테고리 목록 (서버에서 받았으면 그 목록, 아니면 기본 목록) */
+function categoryListNow(): Category[] {
+  return state.serverCategories ?? [...BASE, ...state.customCategories, ETC];
 }
 export function useCategoryList(): Category[] {
+  useSyncExternalStore(subscribe, () => state.serverCategories);
   const custom = useSyncExternalStore(subscribe, () => state.customCategories);
-  return [...BASE, ...custom, ETC];
+  return state.serverCategories ?? [...BASE, ...custom, ETC];
 }
 /** 카테고리 이름 목록 (실천함 칩·시트용) */
 export function useCategories() {
@@ -402,10 +427,14 @@ function toPractice(c: Capture): Practice {
     completedAt: c.status === 'DONE' ? c.status_changed_at : null,
     status: c.status === 'DONE' ? 'done' : isSnoozed(c) ? 'hold' : 'active',
     summary: c.summary,
-    progress: { done: c.checklist.filter((i) => i.checked).length, total: c.checklist.length },
+    progress: c.checklist.length
+      ? { done: c.checklist.filter((i) => i.checked).length, total: c.checklist.length }
+      : (c.progress ?? { done: 0, total: 0 }),
     // 목업에서는 체크리스트가 있어서 계산할 수 있지만, 실제 목록 API에는 아직 없어요
     nextStep: c.checklist.find((i) => !i.checked)?.text ?? null,
-    guideMissing: c.guide === null && c.checklist.length === 0,
+    // 서버 모드: 상세를 받기 전에는 가이드가 없는 건지 알 수 없어서 '없음'으로 보지 않아요
+    guideMissing:
+      c.guide === null && c.checklist.length === 0 && !(c.progress && c.progress.total > 0) && (!USE_SERVER || !!c.detail_loaded),
     snoozeUntil: c.snooze_until,
   };
 }
@@ -438,6 +467,7 @@ export function isOverdue(p: Practice) {
 /** 완료 (COMPLETE). 체크리스트도 모두 체크된 상태로 보여줘요 */
 export function completePractices(ids: string[]) {
   if (saveFails()) return false;
+  if (USE_SERVER) serverAction(ids, 'COMPLETE', {}, true);
   patch(
     ids,
     (c) => ({
@@ -456,18 +486,22 @@ export function completePractices(ids: string[]) {
 /** 보류 (SNOOZE). 날짜를 안 주면 다음 주 같은 요일 */
 export function snoozeCaptures(ids: string[], until: string = nextWeekSameDay()) {
   if (saveFails()) return false;
+  if (USE_SERVER) serverAction(ids, 'SNOOZE', { snooze_until: until }, true);
   patch(ids, (c) => ({ ...c, snooze_until: until, next_alarm_at: at9(until) }), true);
   return true;
 }
 
 /** 보류 풀기: 지금 다시 하기 */
 export function resumeCaptures(ids: string[]) {
+  // 서버는 보류 해제 API 가 없어서 '오늘 날짜로 보류'해서 풀어요 (보류는 오늘 이후일 때만 적용돼요)
+  if (USE_SERVER) serverAction(ids, 'SNOOZE', { snooze_until: dayKey(new Date()) });
   patch(ids, (c) => ({ ...c, snooze_until: null }));
 }
 
 /** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 보관함(참고)으로 옮겨요 */
 export function excludePractices(ids: string[]) {
   if (saveFails()) return false;
+  if (USE_SERVER) serverAction(ids, 'DISMISS', {}, true);
   patch(
     ids,
     (c) => ({
@@ -496,6 +530,7 @@ export function undoLast() {
   const prev = undoSnapshot.captures;
   undoSnapshot = null;
   setState({ ...state, captures: prev });
+  if (USE_SERVER) serverUndo();
   return true;
 }
 
@@ -510,6 +545,15 @@ export function toggleChecklist(id: string, itemId: string): 'toggled' | 'comple
   if (!target) return 'failed';
   const checklistNext = target.checklist.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i));
   const allDone = checklistNext.length > 0 && checklistNext.every((i) => i.checked);
+  if (USE_SERVER) {
+    const item = checklistNext.find((i) => i.id === itemId);
+    api.checkChecklistItem(id, itemId, !!item?.checked).catch((error) => {
+      notifyError(error);
+      void ensureDetail(id, true);
+    });
+    // 서버는 전부 체크해도 자동 완료하지 않아서, 앱이 완료도 같이 보내요
+    if (allDone && target.status === 'TODO') serverAction([id], 'COMPLETE', {}, true);
+  }
   if (allDone && target.status === 'TODO') {
     patch(
       [id],
@@ -525,9 +569,18 @@ export function toggleChecklist(id: string, itemId: string): 'toggled' | 'comple
 /** 카테고리 변경 (PATCH /captures/{id}/category) */
 export function changeCategory(ids: string[], categoryName: string) {
   if (saveFails()) return false;
-  const all = [...BASE, ...state.customCategories, ETC];
+  const all = categoryListNow();
   const next = all.find((c) => c.name === categoryName);
   if (!next) return false;
+  if (USE_SERVER) {
+    const categoryId = Number(next.id);
+    if (!Number.isNaN(categoryId)) {
+      Promise.all(ids.map((cid) => api.changeCaptureCategory(cid, categoryId))).catch((error) => {
+        notifyError(error);
+        void refreshAll();
+      });
+    }
+  }
   patch(ids, (c) => ({ ...c, category: next, category_source: 'USER' }));
   return true;
 }
@@ -535,6 +588,19 @@ export function changeCategory(ids: string[], categoryName: string) {
 /** 추출 정보 수정 (PATCH /captures/{id}/facts). deadline 을 넘기면 마감도 바꿔요 (null = 마감 없음) */
 export function updateFacts(id: string, values: Record<string, string>, deadline?: string | null) {
   if (saveFails()) return false;
+  if (USE_SERVER) {
+    const facts = Object.entries(values).map(([key, value]) => ({ key, value: value.trim() || null }));
+    if (deadline !== undefined) facts.push({ key: 'deadline', value: deadline });
+    if (facts.length) {
+      api
+        .patchFacts(id, facts)
+        .then((detail) => upsert(fromServer(detail, state.captures.find((c) => c.id === id))))
+        .catch((error) => {
+          notifyError(error);
+          void ensureDetail(id, true);
+        });
+    }
+  }
   patch([id], (c) => {
     const facts = c.facts.map((f) =>
       f.key in values ? { ...f, value: values[f.key].trim() || null, edited: true } : f,
@@ -553,6 +619,18 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
 /** AI가 읽은 값으로 되돌리기 (PATCH /captures/{id}/facts 에 value: null) */
 export function revertFact(id: string, key: string) {
   if (saveFails()) return false;
+  if (USE_SERVER) {
+    // 서버가 AI 가 읽은 값으로 되돌려서 돌려줘요
+    api
+      .patchFacts(id, [{ key, value: null }])
+      .then((detail) => upsert(fromServer(detail, state.captures.find((c) => c.id === id))))
+      .catch((error) => {
+        notifyError(error);
+        void ensureDetail(id, true);
+      });
+    patch([id], (c) => ({ ...c, facts: c.facts.map((f) => (f.key === key ? { ...f, edited: false } : f)) }));
+    return true;
+  }
   patch([id], (c) => ({
     ...c,
     facts: c.facts.map((f) => (f.key === key ? { ...f, value: aiOriginal.get(`${id}:${key}`) ?? null, edited: false } : f)),
@@ -567,6 +645,18 @@ export function revertFact(id: string, key: string) {
  */
 export function redoPractices(ids: string[]) {
   if (saveFails()) return null;
+  if (USE_SERVER) {
+    // 서버는 완료 항목을 진행으로 '옮겨요' (REOPEN). 같은 id 를 그대로 써요
+    serverAction(ids, 'REOPEN');
+    patch(ids, (c) => ({
+      ...c,
+      status: 'TODO',
+      status_changed_at: now(),
+      snooze_until: null,
+      checklist: c.checklist.map((i) => ({ ...i, checked: false })),
+    }));
+    return ids;
+  }
   const set = new Set(ids);
   const stamp = Date.now();
   const copies = state.captures
@@ -591,6 +681,11 @@ export function redoPractices(ids: string[]) {
  * 목업이라 단계를 0.8초씩 넘기고 기본 가이드를 채워요. 실패 테스트는 fail = true
  */
 export function reanalyze(id: string, fail = false) {
+  if (USE_SERVER) {
+    const c = state.captures.find((x) => x.id === id);
+    if (c) void startAnalysis(id, c.file_key, c.uri);
+    return;
+  }
   const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
   patch([id], (c) => ({ ...c, status: 'ANALYZING', error: null, job_step: 'OCR' }));
   steps.forEach((step, i) => {
@@ -618,11 +713,12 @@ export function reanalyze(id: string, fail = false) {
 }
 
 /** 카테고리 추가 (POST /categories). 이미 있으면 false */
-export function addCategory(name: string) {
+export function addCategory(name: string): boolean | Promise<boolean> {
   const trimmed = name.trim();
   if (!trimmed) return false;
-  const all = [...BASE, ETC, ...state.customCategories];
+  const all = categoryListNow();
   if (all.some((c) => c.name === trimmed)) return false;
+  if (USE_SERVER) return addServerCategory(trimmed);
   setState({
     ...state,
     customCategories: [...state.customCategories, { id: `cat_custom_${Date.now()}`, name: trimmed, is_custom: true }],
@@ -740,6 +836,12 @@ export function changeSort(captureId: string, sort: 'ACT' | 'REF' | 'NONE') {
     return;
   }
   patch([captureId], (c) => ({ ...c, status: 'ANALYZING', job_step: 'OCR' }));
+  if (USE_SERVER) {
+    // 서버 분류는 이미 바뀌었어요. 실천으로 바꿨으니 사진을 다시 올려 분석해요
+    const c = state.captures.find((x) => x.id === captureId);
+    if (c) void startAnalysis(captureId, c.file_key, c.uri);
+    return;
+  }
   runMockAnalysis(captureId);
 }
 
@@ -769,4 +871,324 @@ function runMockAnalysis(id: string) {
           },
     );
   }, steps.length * 900);
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════
+ * 서버 연동 (USE_SERVER = .env.local 에 EXPO_PUBLIC_API_URL 이 있을 때)
+ * 화면에는 바로 반영(낙관적 업데이트)하고, 서버에 보낸 뒤 실패하면 알리고 다시 받아와요.
+ * ═════════════════════════════════════════════════════════════════════ */
+
+const NO_DEADLINE: Deadline = { status: 'NONE', date: null, label: null, box: null };
+
+/** 오류 알림 (짧은 시간에 여러 번 뜨지 않게) */
+let lastAlertAt = 0;
+function notifyError(error: unknown) {
+  console.warn('[moa] 요청 실패', error);
+  if (Date.now() - lastAlertAt < 3000) return;
+  lastAlertAt = Date.now();
+  Alert.alert('요청하지 못했어요', api.errorMessage(error));
+}
+
+function toCategory(c: { id: number; name: string; is_custom: boolean } | null): Category | null {
+  return c ? { id: String(c.id), name: c.name, is_custom: c.is_custom } : null;
+}
+
+/** 서버 응답 → 앱 데이터. 목록(요약형)에는 상세가 없어서, 이미 받아 둔 상세는 지우지 않고 이어 써요 */
+function fromServer(s: api.ServerCapture, prev?: Capture): Capture {
+  return {
+    id: String(s.id),
+    file_key: s.file_key,
+    status: s.status,
+    category: toCategory(s.category),
+    category_source: s.category_source ?? prev?.category_source ?? 'AI',
+    title: s.title,
+    summary: s.summary,
+    facts: s.facts ?? prev?.facts ?? [],
+    deadline: s.deadline ?? NO_DEADLINE,
+    links: s.links ?? prev?.links ?? [],
+    guide: s.guide !== undefined ? s.guide : (prev?.guide ?? null),
+    checklist: s.checklist ?? prev?.checklist ?? [],
+    snooze_until: s.snooze_until,
+    next_alarm_at: s.next_alarm_at !== undefined ? s.next_alarm_at : (prev?.next_alarm_at ?? null),
+    folder_id: null,
+    error: s.error !== undefined ? s.error : (prev?.error ?? null),
+    created_at: s.created_at,
+    status_changed_at: s.status_changed_at,
+    uri: prev?.uri,
+    job_step: prev?.job_step,
+    progress: s.checklist_progress ?? prev?.progress,
+    detail_loaded: s.checklist !== undefined ? true : prev?.detail_loaded,
+  };
+}
+
+function upsert(capture: Capture) {
+  const exists = state.captures.some((c) => c.id === capture.id);
+  commit(exists ? state.captures.map((c) => (c.id === capture.id ? capture : c)) : [capture, ...state.captures]);
+}
+
+/** 앱 안에서만 들고 있던 항목을 지워요 (분류 취소 · 참고로 변경 등) */
+export function dropCapture(id: string) {
+  detailLoaded.delete(id);
+  commit(state.captures.filter((c) => c.id !== id));
+}
+
+/** 로그아웃 시 앱 안의 데이터를 비워요 */
+export function resetStore() {
+  detailLoaded.clear();
+  undoTokens = null;
+  setState({ captures: USE_SERVER ? [] : INITIAL, customCategories: [], serverCategories: null });
+}
+
+/* ───────── 기기 사진 주소 (file_key = 기기 사진 ID) ───────── */
+
+const uriCache = new Map<string, string | null>();
+async function resolveUri(fileKey: string): Promise<string | null> {
+  if (Platform.OS === 'web' || !MediaLibrary) return null;
+  if (uriCache.has(fileKey)) return uriCache.get(fileKey) ?? null;
+  try {
+    const info = await MediaLibrary.getAssetInfoAsync(fileKey);
+    const uri = info?.localUri ?? info?.uri ?? null;
+    uriCache.set(fileKey, uri);
+    return uri;
+  } catch {
+    uriCache.set(fileKey, null);
+    return null;
+  }
+}
+let resolving = false;
+async function fillUris() {
+  if (resolving) return;
+  resolving = true;
+  try {
+    for (const c of state.captures.filter((x) => !x.uri)) {
+      const uri = await resolveUri(c.file_key);
+      if (uri) patch([c.id], (x) => ({ ...x, uri }));
+    }
+  } finally {
+    resolving = false;
+  }
+}
+
+/* ───────── 불러오기 ───────── */
+
+let refreshing: Promise<void> | null = null;
+
+/** 카테고리 + 실천 대기 · 완료 · 참고 캡처를 모두 새로 받아와요 */
+export function refreshAll(): Promise<void> {
+  if (!USE_SERVER || !api.isLoggedIn()) return Promise.resolve();
+  refreshing ??= (async () => {
+    try {
+      const [cats, todo, done, reference] = await Promise.all([
+        api.getCategories(),
+        api.getAllCaptures('TODO'),
+        api.getAllCaptures('DONE'),
+        api.getAllCaptures('REFERENCE'),
+      ]);
+      const prevById = new Map(state.captures.map((c) => [c.id, c]));
+      const fromApi = [...todo, ...done, ...reference].map((s) => fromServer(s, prevById.get(String(s.id))));
+      const ids = new Set(fromApi.map((c) => c.id));
+      // 목록 API 에는 분석 중·실패 항목이 없어서, 앱이 추적 중인 것은 남겨 둬요
+      const pending = state.captures.filter((c) => (c.status === 'ANALYZING' || c.status === 'FAILED') && !ids.has(c.id));
+      setState({
+        ...state,
+        serverCategories: cats.map((c) => ({ id: String(c.id), name: c.name, is_custom: c.is_custom })),
+        captures: [...pending, ...fromApi],
+      });
+      void fillUris();
+    } catch (error) {
+      console.warn('[moa] 목록을 불러오지 못했어요', error);
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+/** 상세(핵심 정보·링크·가이드·체크리스트)는 열 때 한 번 받아와요 */
+const detailLoaded = new Set<string>();
+async function ensureDetail(id: string, force = false) {
+  if (!USE_SERVER || !api.isLoggedIn() || (!force && detailLoaded.has(id))) return;
+  detailLoaded.add(id);
+  try {
+    const detail = await api.getCaptureDetail(id);
+    const prev = state.captures.find((c) => c.id === id);
+    const next = fromServer(detail, prev);
+    upsert({ ...next, detail_loaded: true });
+    if (!next.uri) {
+      const uri = await resolveUri(next.file_key);
+      if (uri) patch([id], (c) => ({ ...c, uri }));
+    }
+  } catch (error) {
+    detailLoaded.delete(id);
+    console.warn('[moa] 상세를 불러오지 못했어요', error);
+  }
+}
+
+/* ───────── 상태 변경 (POST /captures/{id}/actions) ───────── */
+
+let undoTokens: Promise<{ id: string; token: string }[]> | null = null;
+
+function serverAction(
+  ids: string[],
+  action: api.CaptureActionName,
+  extra: { snooze_until?: string } = {},
+  undoable = false,
+) {
+  const requests = Promise.allSettled(ids.map((id) => api.actOnCapture(id, action, extra)));
+  const tokens = requests.then((results) => {
+    const list: { id: string; token: string }[] = [];
+    let failed: unknown = null;
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        failed = r.reason;
+        return;
+      }
+      if (r.value.undo) list.push({ id: ids[i], token: r.value.undo.token });
+    });
+    if (failed) {
+      notifyError(failed);
+    }
+    // 성공이든 실패든 서버 기준으로 다시 맞춰요 (실패하면 화면이 원래대로 돌아와요)
+    void refreshAll();
+    return list;
+  });
+  if (undoable) undoTokens = tokens;
+}
+
+/** 되돌리기 (UNDO). 화면은 이미 되돌렸고, 서버에도 알려요 */
+function serverUndo() {
+  const tokens = undoTokens;
+  undoTokens = null;
+  if (!tokens) return;
+  void tokens
+    .then((list) => Promise.allSettled(list.map((t) => api.actOnCapture(t.id, 'UNDO', { token: t.token }))))
+    .then(() => refreshAll());
+}
+
+/* ───────── 카테고리 추가 (POST /categories) ───────── */
+
+async function addServerCategory(name: string): Promise<boolean> {
+  try {
+    const created = await api.createCategory(name);
+    const category: Category = { id: String(created.id), name: created.name, is_custom: created.is_custom ?? true };
+    // 서버 순서: 기본 → 내가 만든 것 → 기타
+    const list = state.serverCategories ?? [...BASE, ...state.customCategories, ETC];
+    const etc = list.filter((c) => c.name === ETC.name);
+    const rest = list.filter((c) => c.name !== ETC.name);
+    setState({ ...state, serverCategories: [...rest, category, ...etc] });
+    return true;
+  } catch (error) {
+    if (error instanceof api.ApiError && error.code === 'DUPLICATE_NAME') return false;
+    throw error;
+  }
+}
+
+/* ───────── 분류 · AI 분석 ───────── */
+
+/**
+ * 서버에 분류를 저장한 사진을 앱 목록에 넣어요. recordId 는 서버가 돌려준 분류 id 이고, 캡처 id 와 같아요.
+ * 실천(ACT)이면 사진을 올려 AI 분석을 시작해요.
+ */
+export function registerClassified(
+  recordId: number,
+  shot: { id: string; capturedAt: string; uri?: string },
+  sort: 'ACT' | 'REF',
+) {
+  const id = String(recordId);
+  const stamp = now();
+  upsert({
+    id,
+    file_key: shot.id,
+    status: sort === 'ACT' ? 'ANALYZING' : 'REFERENCE',
+    category: null,
+    category_source: 'AI',
+    title: null,
+    summary: null,
+    facts: [],
+    deadline: NO_DEADLINE,
+    links: [],
+    guide: null,
+    checklist: [],
+    snooze_until: null,
+    next_alarm_at: null,
+    folder_id: null,
+    error: null,
+    created_at: stamp,
+    status_changed_at: stamp,
+    uri: shot.uri,
+    job_step: sort === 'ACT' ? 'OCR' : undefined,
+  });
+  if (sort === 'ACT') void startAnalysis(id, shot.id, shot.uri);
+  return id;
+}
+
+const analyzing = new Set<string>();
+
+async function pollAnalysis(captureId: string, jobId: number, firstDelay: number) {
+  let delay = firstDelay;
+  for (let i = 0; i < 90; i++) {
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay = 2000;
+    try {
+      const [job] = await api.getAnalysisJobs([jobId]);
+      if (job?.status === 'SUCCEEDED') {
+        detailLoaded.delete(captureId);
+        await refreshAll();
+        await ensureDetail(captureId, true);
+        patch([captureId], (c) => ({ ...c, job_step: undefined }));
+        return;
+      }
+      if (job?.status === 'FAILED') {
+        patch([captureId], (c) => ({
+          ...c,
+          status: 'FAILED',
+          job_step: undefined,
+          error: job.error ?? { code: 'ANALYSIS_FAILED', message: 'AI 분석에 실패했어요.' },
+        }));
+        return;
+      }
+      // 진행 단계 표시 (서버 step: OCR → CATEGORIZE → DONE)
+      if (job?.step) {
+        const step: AnalysisStep = job.step === 'DONE' ? 'GUIDE' : job.step;
+        patch([captureId], (c) => (c.status === 'ANALYZING' ? { ...c, job_step: step } : c));
+      }
+    } catch {
+      // 일시적인 네트워크 오류는 다음 주기에 다시 확인해요
+    }
+  }
+  patch([captureId], (c) => ({
+    ...c,
+    status: 'FAILED',
+    job_step: undefined,
+    error: { code: 'ANALYSIS_TIMEOUT', message: '분석 시간이 너무 오래 걸려요. 다시 시도해 주세요.' },
+  }));
+}
+
+/** 실천으로 분류한 사진을 올려 AI 분석을 요청하고, 끝날 때까지 진행 상태를 확인해요 */
+export async function startAnalysis(captureId: string | number, fileKey: string, imageUri?: string | null) {
+  const id = String(captureId);
+  if (!USE_SERVER || analyzing.has(id)) return;
+  analyzing.add(id);
+  patch([id], (c) => ({ ...c, status: 'ANALYZING', error: null, job_step: 'OCR' }));
+
+  try {
+    // 아이폰의 ph:// 같은 주소는 업로드가 안 돼서, 기기에서 읽을 수 있는 파일 주소로 바꿔서 올려요
+    const uri = (await resolveUri(fileKey)) ?? imageUri ?? state.captures.find((c) => c.id === id)?.uri;
+    if (!uri) throw new Error('기기에서 사진을 찾지 못했어요. 사진 접근 권한을 확인해 주세요.');
+    const job = await api.requestAnalysis(id, uri);
+    await pollAnalysis(id, job.job_id, job.poll_after_ms);
+  } catch (error) {
+    patch([id], (c) => ({
+      ...c,
+      status: 'FAILED',
+      job_step: undefined,
+      error: {
+        code: error instanceof api.ApiError ? String(error.code ?? 'ERROR') : 'ERROR',
+        message: api.errorMessage(error),
+      },
+    }));
+  } finally {
+    analyzing.delete(id);
+  }
 }
