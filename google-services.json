@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "468784550722",
+    "project_id": "line4-likelion",
+    "storage_bucket": "line4-likelion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468784550722:android:9d924a0191e9f84eceeedb",
+        "android_client_info": {
+          "package_name": "com.line4.moa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA90qAQrmjqQJBTF2YxkiR7tuXQHcyqRzo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
