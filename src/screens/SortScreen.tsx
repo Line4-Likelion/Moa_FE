@@ -30,6 +30,7 @@ import {
 import { Button } from '../components/Button';
 import { BATCH_SIZE, type Screenshot } from '../mock/screenshots';
 import { loadUnsortedScreenshots } from '../services/screenshots';
+import { dropCapture, startAnalysis } from '../store/practices';
 import { cancelClassification, changeClassification, saveClassification } from '../services/api';
 import { colors, fonts, radius } from '../theme';
 
@@ -97,7 +98,10 @@ export function SortScreen() {
     if (!current || saving.current) return;
     saving.current = true;
     try {
-      if (recordIds[current.id]) await cancelClassification(recordIds[current.id]);
+      if (recordIds[current.id]) {
+        await cancelClassification(recordIds[current.id]);
+        dropCapture(String(recordIds[current.id]));
+      }
       setDecisions((old) => { const next = { ...old }; delete next[current.id]; return next; });
       setRecordIds((old) => { const next = { ...old }; delete next[current.id]; return next; });
     } catch (error) {
@@ -151,6 +155,12 @@ export function SortScreen() {
         const value = decision === 'practice' ? 'PRACTICE' : 'REFERENCE';
         const record = id ? await changeClassification(id, value) : await saveClassification(current.id, value);
         setRecordIds((old) => ({ ...old, [current.id]: record.id }));
+        if (value === 'PRACTICE') {
+          // 실천으로 분류한 사진은 바로 AI 분석을 요청해요 (결과는 실천함에서 확인)
+          void startAnalysis(record.id, current.id, current.uri);
+        } else {
+          dropCapture(String(record.id));
+        }
       } else if (id) {
         Alert.alert('분류 변경', '이미 저장한 분류는 삭제할 수 없어요.');
         return;

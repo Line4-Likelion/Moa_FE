@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { Card, FormField, Lines, OptionRow, SettingItem, StatusChip } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
+import { errorMessage } from '../services/api';
+import { DEFAULT_ALARM_SETTINGS, loadAccount, saveAlarmSettings, useAccount } from '../store/account';
 import { colors, fonts } from '../theme';
 
 const INTERVALS = [
@@ -17,14 +19,41 @@ type ReminderProps = NativeStackScreenProps<RootStackParamList, 'ReminderSetting
 
 /** 19 리마인드 주기 · 방해금지 설정 */
 export function ReminderSettingsScreen({ navigation }: ReminderProps) {
-  const [hours, setHours] = useState(12);
-  const [dnd, setDnd] = useState(true);
+  const account = useAccount();
+  const settings = account.settings ?? DEFAULT_ALARM_SETTINGS;
+  const [hours, setHours] = useState(settings.intervalHours);
+  const [dnd, setDnd] = useState(settings.dnd);
+  // TODO(백엔드 확인): 서버에는 방해금지 시작·종료 시간 필드가 없어서 이 값은 저장되지 않아요
   const [start, setStart] = useState('22:00');
   const [end, setEnd] = useState('08:00');
+  const [saving, setSaving] = useState(false);
+
+  // 서버 값이 늦게 도착하면 화면 값도 맞춰요
+  useEffect(() => {
+    if (!account.settings) void loadAccount();
+  }, [account.settings]);
+  useEffect(() => {
+    if (account.settings) {
+      setHours(account.settings.intervalHours);
+      setDnd(account.settings.dnd);
+    }
+  }, [account.settings]);
 
   const next = `${hours}시간 뒤 · 방해금지 ${dnd ? '켜짐' : '꺼짐'}`;
 
-  const save = () => navigation.navigate('Tabs', { screen: 'My', params: { variant: 'saved' } });
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await saveAlarmSettings({ ...settings, intervalHours: hours, dnd });
+      navigation.navigate('Tabs', { screen: 'My', params: { variant: 'saved' } });
+    } catch (error) {
+      Alert.alert('설정을 저장하지 못했어요', errorMessage(error));
+      navigation.navigate('SettingsSaveFailed');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Screen
@@ -34,7 +63,7 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
       footer={
         <View style={styles.actions}>
           <Button label="취소" variant="secondary" onPress={navigation.goBack} style={styles.flex} />
-          <Button label="저장" onPress={save} style={styles.flex} />
+          <Button label="저장" onPress={save} disabled={saving} style={styles.flex} />
         </View>
       }
     >
@@ -91,7 +120,7 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
         />
       </Card>
 
-      <Lines lines={[`저장하면 ${next}으로 변경돼요.`, '취소하면 24시간 뒤 · 꺼짐을 유지해요.']} size={11} />
+      <Lines lines={[`저장하면 ${next}으로 변경돼요.`, `취소하면 ${settings.intervalHours}시간 뒤 · 방해금지 ${settings.dnd ? '켜짐' : '꺼짐'}을 유지해요.`]} size={11} />
     </Screen>
   );
 }

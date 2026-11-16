@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { FormField, Lines, OptionRow } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
+import { errorMessage } from '../services/api';
 import { addCategory, changeCategory, useCapture, useCategories } from '../store/practices';
 import { colors, fonts } from '../theme';
 
@@ -29,6 +30,7 @@ function Actions({
 export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'CategoryAdd'>) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
   const canSave = name.trim().length > 0;
 
   return (
@@ -39,11 +41,19 @@ export function CategoryAddScreen({ navigation }: NativeStackScreenProps<RootSta
       footer={
         <Actions
           onCancel={navigation.goBack}
-          onSave={() => {
-            if (addCategory(name)) navigation.goBack();
-            else setError('이미 있는 카테고리예요');
+          onSave={async () => {
+            if (saving) return;
+            setSaving(true);
+            try {
+              if (await addCategory(name)) navigation.goBack();
+              else setError('이미 있는 카테고리예요');
+            } catch (e) {
+              setError(errorMessage(e, '카테고리를 추가하지 못했어요'));
+            } finally {
+              setSaving(false);
+            }
           }}
-          saveDisabled={!canSave}
+          saveDisabled={!canSave || saving}
         />
       }
     >

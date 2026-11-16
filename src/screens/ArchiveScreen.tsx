@@ -7,35 +7,28 @@ import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { EmptyState } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
+import { ETC_CATEGORY, useCaptures, useCategories } from '../store/practices';
 import { colors, fonts } from '../theme';
 
-const FILTERS = [
-  { id: 'all', label: '전체', count: 3 },
-  { id: 'fashion', label: '패션', count: 0 },
-  { id: 'food', label: '맛집', count: 1 },
-  { id: 'travel', label: '여행', count: 0 },
-  { id: 'recipe', label: '레시피', count: 1 },
-  { id: 'etc', label: '미분류', count: 0 },
-];
-
 const GAP = 12;
-
-/** 보관함 항목. uri가 비어 있으면 회색 자리표시자로 보여요. (서버/갤러리 연동 시 uri만 채우면 됨) */
-type ArchiveItem = { id: string; title: string; uri?: string };
-const ITEMS: ArchiveItem[] = [
-  { id: '0', title: '연남 소바실' },
-  { id: '1', title: '성수 카페 거리' },
-  { id: '2', title: '집에서 만드는 파스타' },
-  ...Array.from({ length: 6 }, (_, i) => ({ id: String(i + 3), title: `항목 ${i + 4}` })),
-];
 
 export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Archive'>) {
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
+  const captures = useCaptures();
+  const categoryNames = useCategories();
   const [filter, setFilter] = useState('all');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const isEmpty = route.params?.empty;
+  // 참고함 = 서버의 REFERENCE 항목 (사진 주소는 기기에서 file_key 로 찾아와요)
+  const items = captures.filter((c) => c.status === 'REFERENCE');
+  const isEmpty = route.params?.empty || items.length === 0;
+  const nameOf = (c: (typeof items)[number]) => c.category?.name ?? ETC_CATEGORY;
+  const filters = [
+    { id: 'all', label: '전체', count: items.length },
+    ...categoryNames.map((name) => ({ id: name, label: name, count: items.filter((c) => nameOf(c) === name).length })),
+  ];
+  const visible = filter === 'all' ? items : items.filter((c) => nameOf(c) === filter);
   const cardWidth = (width - 40 - GAP * 2) / 3;
 
   if (isEmpty) {
@@ -58,10 +51,10 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
     setSelected((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
 
   const goChange = () => {
-    const picked = ITEMS.filter((i) => selected.includes(i.id));
-    const label = picked.length === 1 ? picked[0].title : `${picked.length}개 항목`;
+    const picked = items.filter((i) => selected.includes(i.id));
+    const label = picked.length === 1 ? (picked[0].title ?? '이 항목') : `${picked.length}개 항목`;
     cancelSelect();
-    navigation.navigate('CategoryChange', { label });
+    navigation.navigate('CategoryChange', { label, ids: picked.map((i) => i.id) });
   };
 
   return (
@@ -80,7 +73,7 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
       header={
         <View style={{ gap: 12 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {FILTERS.map((f) => {
+            {filters.map((f) => {
               const active = f.id === filter;
               return (
                 <Pressable
@@ -124,12 +117,12 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
       }
       contentStyle={styles.grid}
     >
-      {ITEMS.map((item) => {
+      {visible.map((item) => {
         const isSelected = selected.includes(item.id);
         return (
           <Pressable
             key={item.id}
-            accessibilityLabel={item.title}
+            accessibilityLabel={item.title ?? '참고 사진'}
             accessibilityState={{ selected: isSelected }}
             onPress={selectMode ? () => toggle(item.id) : undefined}
             onLongPress={selectMode ? undefined : () => startSelect(item.id)}
