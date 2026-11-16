@@ -19,6 +19,8 @@ export type Classification = 'PRACTICE' | 'REFERENCE';
 export type ClassificationRecord = { id: number; fileKey: string; classification: Classification | 'DELETE' };
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+/** 로그·진단용 (어느 서버로 요청하는지 확인) */
+export const apiBaseUrl = baseUrl;
 
 /* ═════════ 에러 ═════════ */
 
@@ -152,7 +154,8 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
       },
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     });
-  } catch {
+  } catch (cause) {
+    console.warn(`[moa] 네트워크 오류 ${rest.method ?? 'GET'} ${baseUrl}${path}`, cause);
     throw new ApiError(0, 'NETWORK', '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.');
   } finally {
     clearTimeout(timer);
@@ -368,4 +371,17 @@ export function registerPushToken(token: string, platform: 'ANDROID' | 'IOS') {
 }
 export function deletePushToken(token: string) {
   return request<void>(`/push-tokens/${encodeURIComponent(token)}`, { method: 'DELETE' });
+}
+
+/* ═════════ 위치 기반 알림 (지오펜스) ═════════ */
+
+export type GeofencePlace = { capture_id: string; title: string | null; lat: number; lng: number; radius_m: number };
+/** 위치 알림이 켜져 있고 좌표가 있는 장소 목록 (꺼져 있으면 빈 목록). capture_id 는 "cap_12" 형식 */
+export async function getGeofences() {
+  const data = await request<{ places: GeofencePlace[] }>('/geofences');
+  return data?.places ?? [];
+}
+/** 장소 근처에 도착했을 때 호출 (장소별 하루 한 번만 푸시가 가요). captureId 는 "cap_12" 그대로 */
+export function notifyArrival(captureId: string) {
+  return request<{ notified: boolean; message: string }>(`/geofences/${captureId}/arrived`, { method: 'POST' });
 }

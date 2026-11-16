@@ -3,6 +3,12 @@ import * as api from '../services/api';
 
 /** 내 프로필(GET /users/me)과 알림 설정(GET·PUT /settings/alarm) — 마이 · 리마인드 설정 화면이 같이 써요 */
 
+const ALLOWED_INTERVALS = [12, 24, 48];
+/** 서버에 화면에서 고를 수 없는 주기 값이 들어 있으면 기본(24시간)으로 보여줘요. 저장하면 서버 값도 바로잡혀요 */
+function sane(s: api.AlarmSettings): api.AlarmSettings {
+  return ALLOWED_INTERVALS.includes(s.intervalHours) ? s : { ...s, intervalHours: 24 };
+}
+
 export type AccountState = {
   profile: api.AuthUser | null;
   settings: api.AlarmSettings | null;
@@ -39,7 +45,7 @@ export async function loadAccount() {
   const [profile, settings] = await Promise.allSettled([api.getMe(), api.getAlarmSettings()]);
   setState({
     profile: profile.status === 'fulfilled' ? profile.value : state.profile,
-    settings: settings.status === 'fulfilled' ? settings.value : state.settings,
+    settings: settings.status === 'fulfilled' ? sane(settings.value) : state.settings,
     profileFailed: profile.status === 'rejected',
     status: profile.status === 'rejected' && settings.status === 'rejected' ? 'error' : 'ready',
   });
@@ -48,7 +54,7 @@ export async function loadAccount() {
 /** 알림 설정 저장. 실패하면 이전 값을 그대로 두고 던져요 */
 export async function saveAlarmSettings(next: api.AlarmSettings) {
   const saved = await api.updateAlarmSettings(next);
-  setState({ ...state, settings: saved });
+  setState({ ...state, settings: sane(saved) });
   return saved;
 }
 

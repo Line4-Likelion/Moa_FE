@@ -32,6 +32,7 @@ import {
 import { ReminderSettingsScreen, SettingsSaveFailedScreen } from './src/screens/ReminderScreens';
 import { onSessionExpired, restoreSession } from './src/services/api';
 import { registerForPush, usePushNavigation } from './src/services/push';
+import { syncGeofences } from './src/services/location';
 import { loadQuietHours } from './src/store/quietHours';
 import { refreshAll, resetStore } from './src/store/practices';
 import { colors } from './src/theme';
@@ -57,7 +58,11 @@ function Tabs() {
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false }}
       // 탭을 열 때마다 서버의 최신 목록을 받아와요 (로그인 직후 첫 화면 포함)
-      screenListeners={{ focus: () => void refreshAll() }}
+      screenListeners={{
+        focus: () => {
+          void refreshAll().then(() => syncGeofences());
+        },
+      }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Practice" component={PracticeScreen} />

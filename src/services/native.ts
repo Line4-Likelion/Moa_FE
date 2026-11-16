@@ -18,3 +18,13 @@ export const MediaLibrary = optionalModule(
   () => require('expo-media-library/legacy') as typeof import('expo-media-library/legacy'),
   'expo-media-library',
 );
+
+export const Location = optionalModule(() => require('expo-location') as typeof import('expo-location'), 'expo-location');
+export const TaskManager = optionalModule(
+  () => require('expo-task-manager') as typeof import('expo-task-manager'),
+  'expo-task-manager',
+);
+export const ImageManipulator = optionalModule(
+  () => require('expo-image-manipulator') as typeof import('expo-image-manipulator'),
+  'expo-image-manipulator',
+);

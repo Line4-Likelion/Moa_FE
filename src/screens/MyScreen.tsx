@@ -11,6 +11,7 @@ import { Card, Caption, Divider, Lines, SettingItem, StatusChip } from '../compo
 import type { TabParamList } from '../navigation/types';
 import { DEFAULT_ALARM_SETTINGS, loadAccount, resetAccount, saveAlarmSettings, useAccount } from '../store/account';
 import { unregisterPush } from '../services/push';
+import { requestLocationAccess, stopGeofences, syncGeofences, useLocationAccess } from '../services/location';
 import { useQuietHours } from '../store/quietHours';
 import { resetStore } from '../store/practices';
 import { colors, fonts } from '../theme';
@@ -41,6 +42,7 @@ export function MyScreen({ route }: Props) {
 
   const onConfirmLogout = async () => {
     setLogoutOpen(false);
+    await stopGeofences();
     await unregisterPush(); // 로그아웃 전에 이 기기의 푸시 토큰을 지워요 (토큰이 필요해서 순서가 중요해요)
     await logout();
     resetStore();
@@ -78,6 +80,33 @@ function DefaultView({
   const goReminder = () => navigation.navigate('ReminderSettings');
   const [pendingDnd, setPendingDnd] = useState<boolean | null>(null);
   const dnd = pendingDnd ?? settings.dnd;
+  const { access, refresh: refreshAccess } = useLocationAccess();
+  const [pendingLoc, setPendingLoc] = useState<boolean | null>(null);
+  const hasAccess = access === 'granted';
+  const locOn = pendingLoc ?? (settings.locationAlarmEnabled && hasAccess);
+
+  // 위치 기반 알림: 권한이 없으면 먼저 요청하고, 그래도 안 되면 권한 안내 화면으로 보내요.
+  // 켜면 서버에 저장하고 장소를 기기에 등록해요. 끄면 등록을 해제해요
+  const toggleLocation = async (value: boolean) => {
+    if (value && !hasAccess) {
+      const result = await requestLocationAccess();
+      refreshAccess();
+      if (result !== 'granted') {
+        navigation.navigate('LocationPermission');
+        return;
+      }
+    }
+    setPendingLoc(value);
+    try {
+      await saveAlarmSettings({ ...settings, locationAlarmEnabled: value });
+      if (value) await syncGeofences(true);
+      else await stopGeofences();
+    } catch (error) {
+      Alert.alert('설정을 저장하지 못했어요', errorMessage(error));
+    } finally {
+      setPendingLoc(null);
+    }
+  };
 
   // 방해금지는 바로 저장해요. 실패하면 원래 값으로 돌아가요
   const toggleDnd = async (value: boolean) => {
@@ -128,11 +157,21 @@ function DefaultView({
         <Divider />
         <SettingItem
           label="위치 기반 알림"
-          value={settings.locationAlarmEnabled}
-          disabled
-          onDisabledPress={() => navigation.navigate('LocationPermission')}
-          description="위치 권한을 허용해야 켤 수 있어요."
-          warning="권한 없음 · 사용 불가"
+          value={locOn}
+          onValueChange={toggleLocation}
+          disabled={!hasAccess}
+          onDisabledPress={() => void toggleLocation(true)}
+          description={
+            hasAccess ? '저장한 장소 근처에 가면 알려드려요.' : '위치 권한을 허용해야 켤 수 있어요.'
+          }
+          status={hasAccess ? (locOn ? '켜짐' : '꺼짐') : undefined}
+          warning={
+            hasAccess
+              ? undefined
+              : access === 'foreground'
+                ? '앱 사용 중에만 허용 · 항상 허용이 필요해요'
+                : '권한 없음 · 사용 불가'
+          }
         />
       </Card>
 
@@ -142,7 +181,11 @@ function DefaultView({
           size={11}
           lines={[
             '알림: 허용됨 · 대기 중인 실천만 알려드려요.',
-            '위치: 허용 안 함 · 방문할 장소 근처에서 알림을 받으려면 권한이 필요해요.',
+            hasAccess
+              ? '위치: 항상 허용됨 · 저장한 장소 근처에서 알려드려요.'
+              : access === 'foreground'
+                ? '위치: 앱 사용 중에만 허용 · 알림을 받으려면 항상 허용이 필요해요.'
+                : '위치: 허용 안 함 · 방문할 장소 근처에서 알림을 받으려면 권한이 필요해요.',
           ]}
         />
         <Pressable onPress={openSystemSettings}>

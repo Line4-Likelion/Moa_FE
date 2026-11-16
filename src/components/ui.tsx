@@ -185,7 +185,7 @@ export function OptionRow({
       style={[
         styles.option,
         {
-          height: lg ? 56 : 46,
+          minHeight: lg ? 56 : 46,
           padding: lg ? 16 : 12,
           borderRadius: lg ? radius.button : radius.input,
           backgroundColor: selected ? colors.tint : colors.surface,
