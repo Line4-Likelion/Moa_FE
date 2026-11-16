@@ -5,6 +5,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertCircle, Check, ChevronDown, Image as ImageIcon, Plus, Search, Sparkles } from 'lucide-react-native';
 import { Button } from '../components/Button';
+import { MOCK_FAIL } from '../mock/failures';
 import { ExcludeDialog } from '../components/ExcludeDialog';
 import { UndoToast, type ToastState } from '../components/UndoToast';
 import type { TabParamList } from '../navigation/types';
@@ -18,24 +19,28 @@ import {
   isOverdue,
   redoPractices,
   useCategories,
+  useCompletionStats,
   usePractices,
   type Practice,
 } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
 
 type Tab = 'active' | 'done';
-type ActiveSort = 'due' | 'recent' | 'old';
-type DoneSort = 'recentDone' | 'oldDone';
+/** 명세서 GET /captures 의 sort: deadline / recent. 완료함은 recent 고정 */
+type ActiveSort = 'due' | 'recent';
+type DoneSort = 'recentDone';
 
 const ACTIVE_SORTS: { key: ActiveSort; label: string }[] = [
   { key: 'due', label: '마감 가까운 순' },
   { key: 'recent', label: '최근 담은 순' },
-  { key: 'old', label: '오래 담아둔 순' },
 ];
-const DONE_SORTS: { key: DoneSort; label: string }[] = [
-  { key: 'recentDone', label: '최근 완료 순' },
-  { key: 'oldDone', label: '오래된 완료 순' },
-];
+const DONE_SORTS: { key: DoneSort; label: string }[] = [{ key: 'recentDone', label: '최근 완료 순' }];
+
+/**
+ * 검색창 표시 여부
+ * TODO(백엔드 확인): 명세서에 검색 API가 없어서 꺼둠. API가 생기면 true
+ */
+const SHOW_SEARCH = false;
 
 const ALL = '전체';
 
@@ -51,13 +56,14 @@ function sortActive(list: Practice[], key: ActiveSort) {
       if (x !== y) return x - y;
       return time(b) - time(a);
     }
-    return key === 'recent' ? time(b) - time(a) : time(a) - time(b);
+    return time(b) - time(a);
   });
 }
 
 function sortDone(list: Practice[], key: DoneSort) {
   const time = (p: Practice) => new Date(p.completedAt ?? p.addedAt).getTime();
-  return [...list].sort((a, b) => (key === 'recentDone' ? time(b) - time(a) : time(a) - time(b)));
+  void key;
+  return [...list].sort((a, b) => time(b) - time(a));
 }
 
 function dueLabel(p: Practice): { text: string; color: string; bold: boolean } {
@@ -79,7 +85,7 @@ function dueLabel(p: Practice): { text: string; color: string; bold: boolean } {
 
 function matchesQuery(p: Practice, q: string) {
   if (!q) return true;
-  const text = [p.title, p.category, ...(p.steps ?? []).map((s) => s.title)].join(' ').toLowerCase();
+  const text = [p.title, p.category, p.summary ?? '', p.nextStep ?? ''].join(' ').toLowerCase();
   return text.includes(q.toLowerCase());
 }
 
@@ -104,6 +110,10 @@ export function PracticeScreen() {
   const [excludeIds, setExcludeIds] = useState<string[] | null>(null);
   const [toast, setToastState] = useState<ToastState>(null);
   const setToast = (text: string, undo = false) => setToastState({ text, undo, key: Date.now() });
+  /** 저장 실패: 이전 상태 그대로 두고 재시도 안내 (명세서) */
+  const failed = (retry: () => void) =>
+    setToastState({ text: '저장하지 못했어요', key: Date.now(), action: { label: '다시 시도', onPress: retry } });
+  const [reloadKey, setReloadKey] = useState(0);
   const hideToast = useCallback(() => setToastState(null), []);
 
   // 선택 모드에서는 하단 탭바 대신 선택 버튼을 보여줘요
@@ -201,6 +211,7 @@ export function PracticeScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.top}>
+          {SHOW_SEARCH && (
           <View style={styles.search}>
             <Search size={17} color={colors.textSub} strokeWidth={2} />
             <TextInput
@@ -213,6 +224,7 @@ export function PracticeScreen() {
               accessibilityLabel="실천 검색"
             />
           </View>
+          )}
 
           <View style={styles.segment} accessibilityRole="tablist">
             {(['active', 'done'] as Tab[]).map((t) => {
@@ -232,10 +244,18 @@ export function PracticeScreen() {
           </View>
         </View>
 
-        {isEmptyTab ? (
+        {MOCK_FAIL.practiceListLoad && reloadKey >= 0 ? (
+          /* 목록을 못 불러옴 (GET /captures 실패) */
+          <View style={styles.loadError}>
+            <Text style={styles.loadErrorTitle}>실천 목록을 불러오지 못했어요</Text>
+            <Text style={styles.loadErrorDesc}>잠시 후 다시 시도해주세요</Text>
+            <Button label="다시 시도" variant="secondary" onPress={() => setReloadKey((k) => k + 1)} style={{ marginTop: 12, paddingHorizontal: 24 }} />
+          </View>
+        ) : isEmptyTab ? (
           <EmptyState tab={tab} onSort={() => rootNav.navigate('Sort')} />
         ) : (
           <>
+            {tab === 'done' && <CompletionCard />}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               {chips.map((c) => {
                 const on = category === c.label;
@@ -266,10 +286,14 @@ export function PracticeScreen() {
               <Text style={styles.listTitle}>
                 {tab === 'active' ? `진행 ${activeVisible.length}` : `완료 ${done.length}`}
               </Text>
-              <Pressable onPress={() => setSortOpen(true)} style={styles.sortButton} hitSlop={8}>
+              {tab === 'active' ? (
+                <Pressable onPress={() => setSortOpen(true)} style={styles.sortButton} hitSlop={8}>
+                  <Text style={styles.sortText}>{sortLabel}</Text>
+                  <ChevronDown size={14} color={colors.textSub} strokeWidth={2} />
+                </Pressable>
+              ) : (
                 <Text style={styles.sortText}>{sortLabel}</Text>
-                <ChevronDown size={14} color={colors.textSub} strokeWidth={2} />
-              </Pressable>
+              )}
             </View>
 
             <View style={styles.list}>
@@ -294,8 +318,11 @@ export function PracticeScreen() {
                           variant="overdue"
                           onExclude={() => setExcludeIds([p.id])}
                           onComplete={() => {
-                            completePractices([p.id]);
-                            setToast('완료로 옮겼어요', true);
+                            const save = () => {
+                              if (completePractices([p.id])) setToast('완료로 옮겼어요', true);
+                              else failed(save);
+                            };
+                            save();
                           }}
                         />
                       ))}
@@ -353,9 +380,12 @@ export function PracticeScreen() {
               tone="primary"
               disabled={!picked.length}
               onPress={() => {
-                redoPractices(picked);
-                exitSelect();
-                setToast('진행에 다시 담았어요');
+                const save = () => {
+                  if (!redoPractices(picked)) return failed(save);
+                  exitSelect();
+                  setToast('진행에 다시 담았어요');
+                };
+                save();
               }}
             />
           )}
@@ -391,10 +421,13 @@ export function PracticeScreen() {
           rootNav.navigate('CategoryAdd');
         }}
         onApply={(c) => {
-          changeCategory(picked, c);
           setCategorySheet(false);
-          exitSelect();
-          setToast(`'${c}'(으)로 옮겼어요`);
+          const save = () => {
+            if (!changeCategory(picked, c)) return failed(save);
+            exitSelect();
+            setToast(`'${c}'(으)로 옮겼어요`);
+          };
+          save();
         }}
       />
 
@@ -404,10 +437,14 @@ export function PracticeScreen() {
         onCancel={() => setExcludeIds(null)}
         onConfirm={() => {
           if (!excludeIds) return;
-          excludePractices(excludeIds);
+          const ids = excludeIds;
           setExcludeIds(null);
-          exitSelect();
-          setToast('참고함으로 옮겼어요', true);
+          const save = () => {
+            if (!excludePractices(ids)) return failed(save);
+            exitSelect();
+            setToast('보관함으로 옮겼어요', true);
+          };
+          save();
         }}
       />
     </View>
@@ -436,20 +473,14 @@ function PracticeCard({
   onComplete?: () => void;
 }) {
   const due = dueLabel(p);
-  const stepsDone = p.steps?.filter((s) => s.done).length ?? 0;
-  const total = p.steps?.length ?? 0;
-  const next = p.steps?.find((s) => !s.done);
+  const { done: stepsDone, total } = p.progress;
   const faded = variant === 'hold';
 
-  // 카드 부제목: 다음 단계
+  // 카드 부제목: 다음 단계가 있으면 다음 단계, 없으면 요약 (요약형에 next_step 이 오기 전까지)
   let subtitle: string | null = null;
-  if (variant !== 'done') {
-    if (p.steps === null) subtitle = null;
-    else if (total === 1) subtitle = p.steps[0].title;
-    else if (next) subtitle = `다음 단계 · ${next.title}`;
-  }
+  if (variant !== 'done') subtitle = p.nextStep ? `다음 단계 · ${p.nextStep}` : p.summary;
 
-  const showProgress = p.steps !== null && total > 1 && !(variant === 'overdue' && !selecting);
+  const showProgress = !p.guideMissing && total > 1 && !(variant === 'overdue' && !selecting);
 
   return (
     <Pressable
@@ -488,7 +519,7 @@ function PracticeCard({
           {p.title}
         </Text>
 
-        {p.steps === null ? (
+        {p.guideMissing ? (
           <View style={styles.analyzing}>
             <AlertCircle size={13} color={colors.warn} strokeWidth={2} />
             <Text style={[styles.analyzingText, { color: colors.warn }]}>실천 방법을 만들지 못했어요 · 눌러서 다시 분석</Text>
@@ -530,6 +561,59 @@ function PracticeCard({
         )}
       </View>
     </Pressable>
+  );
+}
+
+/* ───────── 완료율 (완료 탭 위) ───────── */
+
+function CompletionCard() {
+  const stats = useCompletionStats();
+  if (stats.rate === null) {
+    return (
+      <View style={styles.statCard}>
+        <Text style={styles.statLabel}>실천 완료율</Text>
+        <Text style={styles.statEmpty}>아직 실천한 항목이 없어요</Text>
+      </View>
+    );
+  }
+  const pct = (r: number | null) => (r === null ? 0 : Math.round(r * 100));
+  return (
+    <View style={styles.statCard}>
+      <View style={styles.statHead}>
+        <View style={{ gap: 2 }}>
+          <Text style={styles.statLabel}>실천 완료율</Text>
+          <Text style={styles.statSub}>
+            완료 {stats.done_count} · 실천 대기 {stats.todo_count}
+          </Text>
+        </View>
+        <Text style={styles.statRate}>
+          {pct(stats.rate)}
+          <Text style={styles.statRateUnit}>%</Text>
+        </Text>
+      </View>
+      <View style={styles.bars} accessibilityLabel="최근 6주 완료율">
+        {stats.weekly.map((w, i) => {
+          const last = i === stats.weekly.length - 1;
+          const d = new Date(w.week_start + 'T00:00:00');
+          return (
+            <View key={w.week_start} style={styles.barCol}>
+              <View style={styles.barTrack}>
+                <View
+                  style={[
+                    styles.barFill,
+                    { height: `${Math.max(pct(w.rate), w.rate ? 4 : 0)}%` },
+                    !last && { backgroundColor: '#b9d0b2' },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.barLabel, last && { color: colors.primary, fontFamily: fonts.bold }]}>
+                {last ? '이번 주' : `${d.getMonth() + 1}/${d.getDate()}`}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -689,6 +773,22 @@ function CategorySheet({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  loadError: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 6 },
+  loadErrorTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  loadErrorDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
+
+  statCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, gap: 14 },
+  statHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  statLabel: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
+  statSub: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  statEmpty: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, marginTop: 4 },
+  statRate: { fontFamily: fonts.serif, fontSize: 30, color: colors.primary },
+  statRateUnit: { fontFamily: fonts.medium, fontSize: 15, color: colors.primary },
+  bars: { flexDirection: 'row', gap: 8, height: 92 },
+  barCol: { flex: 1, alignItems: 'center', gap: 6 },
+  barTrack: { flex: 1, width: '100%', maxWidth: 28, borderRadius: 6, backgroundColor: '#f1f0ec', justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', borderRadius: 6, backgroundColor: colors.primary },
+  barLabel: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSub },
 
   header: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   title: { fontFamily: fonts.bold, fontSize: 22, letterSpacing: -0.5, color: colors.text },

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { MediaLibrary } from '../services/native';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   Animated,
@@ -12,7 +11,7 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { StackActions, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -25,13 +24,17 @@ import {
   Hand,
   Image as ImageIcon,
   RotateCcw,
+  Sparkles,
   X,
 } from 'lucide-react-native';
 import { Button } from '../components/Button';
-import { BATCH_SIZE, type Screenshot } from '../mock/screenshots';
-import { loadUnsortedScreenshots } from '../services/screenshots';
-import { dropCapture, startAnalysis } from '../store/practices';
+import type { Screenshot } from '../mock/screenshots';
+import type { RootStackParamList } from '../navigation/types';
+import { batchSizeFor, getSortSource, removeFromUnsorted } from '../store/home';
+import { changeSort, classifyShot, registerClassified } from '../store/practices';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { cancelClassification, changeClassification, saveClassification } from '../services/api';
+import { USE_SERVER } from '../services/config';
 import { colors, fonts, radius } from '../theme';
 
 type Decision = 'practice' | 'reference' | 'delete';
@@ -48,6 +51,11 @@ type BatchResult = {
 
 /** 이만큼 끌고 놓으면 분류돼요 */
 const SWIPE_THRESHOLD = 110;
+/**
+ * 위로 민 사진이 이만큼 모이면 분류 도중에도 삭제 팝업
+ * TODO(팀 결정): 명세서 '아직 정할 것' — 임시로 10장
+ */
+const DELETE_THRESHOLD = 10;
 /** 카드 가로:세로 비율 (폰 스크린샷 비율) */
 const CARD_RATIO = 0.47;
 
@@ -62,142 +70,227 @@ let coachSeen = false;
 
 export function SortScreen() {
   const nav = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'Sort'>>();
   const insets = useSafeAreaInsets();
+  const mode = route.params?.mode ?? 'new';
 
-  const [queue, setQueue] = useState<Screenshot[]>([]);
-  const [batch, setBatch] = useState<Screenshot[]>([]);
+  const [batch, setBatch] = useState<Screenshot[]>(() => {
+    const source = getSortSource(mode);
+    return source.slice(0, route.params?.limit ?? batchSizeFor(source.length));
+  });
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
-  const [recordIds, setRecordIds] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  const saving = useRef(false);
+  /** 사진 id → 서버에 만든 캡처 id (좌·우로 분류한 것만) */
+  const [captureIds, setCaptureIds] = useState<Record<string, string>>({});
+  /** 위로 민 사진의 처리 상태: 대기 / 기기에서 삭제됨 / 팝업에서 거부 */
+  const [deleteState, setDeleteState] = useState<Record<string, 'pending' | 'deleted' | 'canceled'>>({});
+  /** 삭제 팝업이 한 번 뜬 뒤에는 그 앞 사진으로 돌아갈 수 없어요 */
+  const [minIndex, setMinIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState<BatchResult | null>(null);
   const [showCoach, setShowCoach] = useState(!coachSeen);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    loadUnsortedScreenshots().then((items) => {
-      if (active) { setQueue(items); setBatch(items.slice(0, BATCH_SIZE)); setLoadError(null); }
-    }).catch((error) => {
-      if (active) setLoadError(error instanceof Error ? error.message : '사진을 불러오지 못했어요.');
-    }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [reload]);
+  /** 서버에 저장된 분류 기록 id (서버 모드) */
+  const [serverIds, setServerIds] = useState<Record<string, number>>({});
+  /** 서버 저장 중 연속 스와이프 막기 */
+  const saving = useRef(false);
+  /** 분류 저장 실패 시 다시 시도할 방향 */
+  const [saveError, setSaveError] = useState<Decision | null>(null);
 
   const decidedCount = Object.keys(decisions).length;
   const current = batch[index];
   const next = batch[index + 1];
   /** 이미 분류한 사진을 다시 보고 있는지 (‹ 로 돌아온 상태) */
-  const isRevisit = !!current && !!decisions[current.id];
+  const isRevisit = index < decidedCount;
   const previousDecision = current ? decisions[current.id] : undefined;
 
-  const undoCurrent = async () => {
-    if (!current || saving.current) return;
-    saving.current = true;
-    try {
-      if (recordIds[current.id]) {
-        await cancelClassification(recordIds[current.id]);
-        dropCapture(String(recordIds[current.id]));
-      }
-      setDecisions((old) => { const next = { ...old }; delete next[current.id]; return next; });
-      setRecordIds((old) => { const next = { ...old }; delete next[current.id]; return next; });
-    } catch (error) {
-      Alert.alert('분류 취소 실패', error instanceof Error ? error.message : '다시 시도해 주세요.');
-    } finally { saving.current = false; }
-  };
-
-  const finishBatch = (finalDecisions: Record<string, Decision>) => {
-    const deleteIds = batch.filter((s) => finalDecisions[s.id] === 'delete').map((s) => s.id);
-
-    const complete = (deleteAllowed: boolean) => {
-      const handled = new Set(
-        batch.filter((s) => finalDecisions[s.id] !== 'delete' || deleteAllowed).map((s) => s.id),
-      );
-      const rest = queue.filter((s) => !handled.has(s.id));
-      const count = (d: Decision) => batch.filter((s) => finalDecisions[s.id] === d).length;
-      setQueue(rest);
-      setResult({
-        practice: count('practice'),
-        reference: count('reference'),
-        deleted: deleteAllowed ? deleteIds.length : 0,
-        canceled: deleteAllowed ? 0 : deleteIds.length,
-        remaining: rest.length,
-      });
+  /**
+   * 안드로이드 삭제 팝업 (명세서: 앱 내부 처리, 서버 호출 없음)
+   * TODO(기기 연동): Alert 대신 MediaLibrary.deleteAssetsAsync(ids) — 시스템 팝업이 직접 떠요
+   */
+  const askDelete = (ids: string[], then: (states: Record<string, 'deleted' | 'canceled'>) => void) => {
+    const settle = (allowed: boolean) => {
+      const states = Object.fromEntries(ids.map((id) => [id, allowed ? 'deleted' : 'canceled'] as const));
+      // 허용하면 기기 목록에서 사라지고, 거부하면 미분류로 남아 다음에 다시 보여요
+      if (allowed) removeFromUnsorted(ids);
+      setDeleteState((prev) => ({ ...prev, ...states }));
+      then(states);
     };
-
-    if (deleteIds.length === 0) {
-      complete(true);
+    if (USE_SERVER) {
+      // 실기기: 안드로이드 시스템 삭제 팝업이 직접 떠요. 거부하면 false
+      MediaLibrary.deleteAssetsAsync(ids)
+        .then((ok) => settle(ok))
+        .catch(() => {
+          Alert.alert('삭제 실패', '사진을 삭제하지 못했어요. 다음에 다시 보여드릴게요.');
+          settle(false);
+        });
       return;
     }
+    // 목업: 시스템 팝업 대신 비슷한 확인창
     Alert.alert(
-      `사진 ${deleteIds.length}장을 삭제할까요?`,
-      '기기에서 완전히 삭제돼요.',
+      `사진 ${ids.length}장을 삭제할까요?`,
+      '기기 휴지통으로 옮겨져요.',
       [
-        { text: '거부', style: 'cancel', onPress: () => complete(false) },
-        { text: '삭제', style: 'destructive', onPress: async () => {
-          try { complete(MediaLibrary ? await MediaLibrary.deleteAssetsAsync(deleteIds) : false); }
-          catch { Alert.alert('삭제 실패', '사진을 삭제하지 못했어요. 다시 분류해 주세요.'); complete(false); }
-        } },
+        { text: '거부', style: 'cancel', onPress: () => settle(false) },
+        { text: '허용', style: 'destructive', onPress: () => settle(true) },
       ],
       { cancelable: false },
     );
   };
 
-  const decide = async (decision: Decision) => {
-    if (!current || saving.current) return;
-    saving.current = true;
-    try {
-      const id = recordIds[current.id];
-      if (decision !== 'delete') {
-        const value = decision === 'practice' ? 'PRACTICE' : 'REFERENCE';
-        const record = id ? await changeClassification(id, value) : await saveClassification(current.id, value);
-        setRecordIds((old) => ({ ...old, [current.id]: record.id }));
-        if (value === 'PRACTICE') {
-          // 실천으로 분류한 사진은 바로 AI 분석을 요청해요 (결과는 실천함에서 확인)
-          void startAnalysis(record.id, current.id, current.uri);
-        } else {
-          dropCapture(String(record.id));
-        }
-      } else if (id) {
-        Alert.alert('분류 변경', '이미 저장한 분류는 삭제할 수 없어요.');
+  const pendingIds = (states = deleteState) => Object.keys(states).filter((id) => states[id] === 'pending');
+
+  /** 좌·우로 분류한 사진은 미분류 목록에서 빼요 (서버에는 스와이프할 때 이미 저장됨) */
+  const commitClassified = (ds = decisions) => {
+    removeFromUnsorted(Object.keys(ds).filter((id) => ds[id] !== 'delete'));
+  };
+
+  const finish = (ds: Record<string, Decision>, del: typeof deleteState) => {
+    const show = (finalDel: typeof deleteState) => {
+      commitClassified(ds);
+      const count = (d: Decision) => batch.filter((s) => ds[s.id] === d).length;
+      // TODO(프론트1 · 알림 권한): 처음으로 실천 항목이 생겼을 때 여기서 알림 권한 요청 (명세서 권한 표)
+      // 처음 세팅의 첫 분류: 결과 요약 대신 첫 결과 화면으로
+      if (route.params?.onboarding) {
+        nav.dispatch(StackActions.replace('OnboardingResult', { practice: count('practice'), reference: count('reference') }));
         return;
       }
+      setResult({
+        practice: count('practice'),
+        reference: count('reference'),
+        deleted: Object.values(finalDel).filter((v) => v === 'deleted').length,
+        canceled: Object.values(finalDel).filter((v) => v === 'canceled').length,
+        remaining: getSortSource(mode).length,
+      });
+    };
+    const pending = pendingIds(del);
+    // 분류 끝: 삭제로 모은 사진이 1장 이상 남아 있으면 팝업
+    if (pending.length) askDelete(pending, (states) => show({ ...del, ...states }));
+    else show(del);
+  };
+
+  const decide = async (decision: Decision) => {
+    if (!current || saving.current) return;
+    setSaveError(null);
+    const prev = decisions[current.id];
+    const prevCapture = captureIds[current.id];
+
+    // 서버 분류 기록 id (서버 모드에서는 캡처 id 와 같아요)
+    let serverRecordId: number | undefined = serverIds[current.id];
+
+    // 서버 모드: 서버에 먼저 저장하고, 성공해야 다음 사진으로 넘어가요
+    if (USE_SERVER && prev !== decision) {
+      saving.current = true;
+      try {
+        const recordId = serverIds[current.id];
+        if (decision === 'delete') {
+          if (recordId) await cancelClassification(recordId);
+          setServerIds((old) => {
+            const next = { ...old };
+            delete next[current.id];
+            return next;
+          });
+        } else {
+          const value = decision === 'practice' ? 'PRACTICE' : 'REFERENCE';
+          const record = recordId ? await changeClassification(recordId, value) : await saveClassification(current.id, value);
+          serverRecordId = record.id;
+          setServerIds((old) => ({ ...old, [current.id]: record.id }));
+        }
+      } catch {
+        // 저장 실패: 카드는 그대로 두고 재시도 안내
+        setSaveError(decision);
+        return;
+      } finally {
+        saving.current = false;
+      }
+    }
+
+    // 서버 저장: 처음이면 classify, 이미 분류했으면 sort 변경
+    const nextCaptureIds = { ...captureIds };
+    if (prev !== decision) {
+      if (prevCapture) {
+        if (decision === 'delete') {
+          changeSort(prevCapture, 'NONE');
+          delete nextCaptureIds[current.id];
+        } else changeSort(prevCapture, decision === 'practice' ? 'ACT' : 'REF');
+      } else if (decision !== 'delete') {
+        try {
+          const sort = decision === 'practice' ? 'ACT' : 'REF';
+          nextCaptureIds[current.id] =
+            USE_SERVER && serverRecordId !== undefined ? registerClassified(serverRecordId, current, sort) : classifyShot(current, sort);
+        } catch {
+          // 저장 실패 (500): 카드는 그대로 두고 재시도 안내 (명세서: 화면의 선택은 유지)
+          setSaveError(decision);
+          return;
+        }
+      }
+    }
+    const nextDel = { ...deleteState };
+    if (decision === 'delete') nextDel[current.id] = 'pending';
+    else if (nextDel[current.id] === 'pending') delete nextDel[current.id];
+
     const nextDecisions = { ...decisions, [current.id]: decision };
     setDecisions(nextDecisions);
+    setCaptureIds(nextCaptureIds);
+    setDeleteState(nextDel);
+
     const nextIndex = index + 1;
-    if (nextIndex >= batch.length && Object.keys(nextDecisions).length === batch.length) {
-      finishBatch(nextDecisions);
+    const done = nextIndex >= batch.length && Object.keys(nextDecisions).length === batch.length;
+    const pending = pendingIds(nextDel);
+
+    if (done) {
+      finish(nextDecisions, nextDel);
+    } else if (pending.length >= DELETE_THRESHOLD) {
+      // 임계치 도달: 분류 도중에도 바로 팝업
+      askDelete(pending, () => {
+        setMinIndex(nextIndex);
+        setIndex(nextIndex);
+      });
     } else {
-      setIndex(nextIndex < batch.length ? nextIndex : batch.findIndex((shot) => !nextDecisions[shot.id]));
+      setIndex(nextIndex);
     }
-    } catch (error) {
-      Alert.alert('분류 저장 실패', error instanceof Error ? error.message : '다시 시도해 주세요.');
-    } finally { saving.current = false; }
+  };
+
+  const close = () => {
+    const leave = () => {
+      commitClassified();
+      // 처음 세팅 중에 닫으면 뒤로 갈 화면이 없어서, 지금까지 나눈 걸로 첫 결과 화면을 보여줘요
+      if (route.params?.onboarding) {
+        const count = (d: Decision) => Object.values(decisions).filter((v) => v === d).length;
+        nav.dispatch(StackActions.replace('OnboardingResult', { practice: count('practice'), reference: count('reference') }));
+        return;
+      }
+      nav.goBack();
+    };
+    // 분류 화면 닫기: 중간에 닫았는데 삭제로 모은 사진이 있으면 팝업 (명세서 제안)
+    const pending = pendingIds();
+    if (pending.length) askDelete(pending, leave);
+    else leave();
   };
 
   const startNextBatch = () => {
-    setBatch(queue.slice(0, BATCH_SIZE));
+    const source = getSortSource(mode);
+    setBatch(source.slice(0, batchSizeFor(source.length)));
     setDecisions({});
-    setRecordIds({});
+    setCaptureIds({});
+    setServerIds({});
+    setDeleteState({});
+    setMinIndex(0);
     setIndex(0);
     setResult(null);
   };
 
   const swipe = useSwipe(decide);
 
-  if (loading || loadError || batch.length === 0) {
-    return <View style={[styles.root, styles.center, { padding: 24, gap: 16 }]}>
-      <Text style={{ color: colors.text, textAlign: 'center' }}>{loading ? '스크린샷을 불러오고 있어요.' : loadError ?? '분류할 스크린샷이 없어요.'}</Text>
-      {!!loadError && <Button label="다시 시도" onPress={() => setReload((n) => n + 1)} />}
-      {!loading && <Button label="홈으로" variant="secondary" onPress={() => nav.goBack()} />}
-    </View>;
-  }
-
   if (result) {
     return <DoneView result={result} onNext={startNextBatch} onHome={() => nav.goBack()} />;
+  }
+
+  if (!current) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center', gap: 12 }]}>
+        <Text style={styles.doneTitle}>분류할 캡처가 없어요</Text>
+        <Button label="홈으로 가기" variant="secondary" onPress={() => nav.goBack()} style={{ paddingHorizontal: 24 }} />
+      </View>
+    );
   }
 
   return (
@@ -209,11 +302,11 @@ export function SortScreen() {
         <View style={styles.pager}>
           <Pressable
             onPress={() => setIndex((i) => i - 1)}
-            disabled={index === 0}
+            disabled={index <= minIndex}
             accessibilityLabel="이전 사진"
             style={styles.pagerButton}
           >
-            <ChevronLeft size={20} color={index === 0 ? colors.disabled : colors.text} strokeWidth={2} />
+            <ChevronLeft size={20} color={index <= minIndex ? colors.disabled : colors.text} strokeWidth={2} />
           </Pressable>
           <Text style={styles.pagerText}>
             {index + 1}
@@ -221,41 +314,42 @@ export function SortScreen() {
           </Text>
           <Pressable
             onPress={() => setIndex((i) => i + 1)}
-            disabled={!isRevisit || index === batch.length - 1}
+            disabled={!isRevisit}
             accessibilityLabel="다음 사진"
             style={styles.pagerButton}
           >
             <ChevronRight size={20} color={isRevisit ? colors.text : colors.disabled} strokeWidth={2} />
           </Pressable>
         </View>
-        <Pressable onPress={() => nav.goBack()} accessibilityLabel="분류 그만하기" style={styles.headerSide}>
+        <Pressable onPress={close} accessibilityLabel="분류 그만하기" style={styles.headerSide}>
           <X size={22} color={colors.text} strokeWidth={1.8} />
         </Pressable>
       </View>
 
       <View style={styles.progress}>
         {batch.map((s, i) => (
-          <View key={s.id} style={[styles.progressSeg, !!decisions[s.id] && styles.progressSegDone]} />
+          <View key={s.id} style={[styles.progressSeg, i < decidedCount && styles.progressSegDone]} />
         ))}
       </View>
 
-      <DeleteHint swipe={swipe} />
+      <DeleteHint swipe={swipe} pending={pendingIds().length} />
+
+      {saveError && (
+        <View style={styles.saveError} accessibilityRole="alert">
+          <Text style={styles.saveErrorText}>분류를 저장하지 못했어요</Text>
+          <Pressable onPress={() => decide(saveError)} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.saveErrorBtn}>다시 시도</Text>
+          </Pressable>
+        </View>
+      )}
 
       {isRevisit && (
         <View style={styles.revisitHint}>
           <Text style={styles.revisitHintText}>이미 분류한 사진이에요 · 다른 쪽으로 밀면 바뀌어요</Text>
-          <Pressable onPress={undoCurrent} accessibilityRole="button"><Text style={styles.revisitHintText}>분류 취소</Text></Pressable>
         </View>
       )}
 
-      {current && (
-        <Deck
-          current={current}
-          next={next}
-          previousDecision={isRevisit ? previousDecision : undefined}
-          swipe={swipe}
-        />
-      )}
+      <Deck current={current} next={next} previousDecision={isRevisit ? previousDecision : undefined} swipe={swipe} />
 
       <View style={{ height: insets.bottom + 20 }} />
 
@@ -349,14 +443,16 @@ function SwipeBlobs({ swipe }: { swipe: Swipe }) {
 
 /* ───────── 위쪽 "기기에서 삭제" 안내 (밀면 빨간 알약으로 바뀜) ───────── */
 
-function DeleteHint({ swipe }: { swipe: Swipe }) {
+function DeleteHint({ swipe, pending }: { swipe: Swipe; pending: number }) {
   const p = swipe.progress.delete;
   const lightOpacity = p.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   return (
     <Pressable onPress={() => swipe.fly('delete')} accessibilityLabel="기기에서 삭제" style={styles.deleteHint}>
       <Animated.View style={[styles.deleteHintInner, { opacity: lightOpacity }]}>
         <ChevronUp size={14} color={colors.error} strokeWidth={2.2} />
-        <Text style={[styles.deleteHintText, { color: colors.error }]}>기기에서 삭제</Text>
+        <Text style={[styles.deleteHintText, { color: colors.error }]}>
+          {pending ? `기기에서 삭제 · ${pending}장 모음` : '기기에서 삭제'}
+        </Text>
       </Animated.View>
       <Animated.View style={[styles.deleteHintInner, styles.deleteHintFilled, { opacity: p }]}>
         <ChevronUp size={14} color="#fff" strokeWidth={2.2} />
@@ -530,8 +626,9 @@ function CoachOverlay({ onStart }: { onStart: () => void }) {
 
 function DoneView({ result, onNext, onHome }: { result: BatchResult; onNext: () => void; onHome: () => void }) {
   const insets = useSafeAreaInsets();
-  const sortedCount = result.practice + result.reference + result.deleted;
-  const nextLabel = result.remaining > BATCH_SIZE ? `다음 ${BATCH_SIZE}장 분류하기` : `남은 ${result.remaining}장 분류하기`;
+  const sortedCount = result.practice + result.reference + result.deleted + result.canceled;
+  // 남은 사진이 12장 이하면 한 번에 전부, 그보다 많으면 10장 (명세서)
+  const nextLabel = result.remaining > 12 ? '다음 10장 분류하기' : `남은 ${result.remaining}장 분류하기`;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom + 12, paddingHorizontal: 20 }]}>
@@ -557,6 +654,17 @@ function DoneView({ result, onNext, onHome }: { result: BatchResult; onNext: () 
           <Stat value={result.deleted} label="삭제" color={colors.error} />
         </View>
 
+        {result.practice > 0 && (
+          <View style={styles.aiCard}>
+            <View style={styles.aiIcon}>
+              <Sparkles size={20} color={colors.primary} strokeWidth={1.8} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.aiTitle}>실천할 방법을 정리하고 있어요</Text>
+              <Text style={styles.aiDesc}>{result.practice}장 분석이 끝나면 알림으로 알려드릴게요</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       {result.canceled > 0 && (
@@ -609,6 +717,19 @@ const styles = StyleSheet.create({
   deleteHintFilled: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.error, justifyContent: 'center' },
   deleteHintText: { fontFamily: fonts.medium, fontSize: 12 },
 
+  saveError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    alignSelf: 'center',
+    marginTop: 4,
+    backgroundColor: colors.errorBg,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  saveErrorText: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
+  saveErrorBtn: { fontFamily: fonts.bold, fontSize: 13, color: colors.error, textDecorationLine: 'underline' },
   revisitHint: { alignSelf: 'center', marginTop: 4, backgroundColor: colors.tint, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   revisitHintText: { fontFamily: fonts.regular, fontSize: 12, color: colors.text },
 

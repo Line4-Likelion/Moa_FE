@@ -11,6 +11,8 @@ export type TabParamList = {
 
 export type RootStackParamList = {
   Login: undefined;
+  /** 회원가입 1단계: 약관·개인정보 동의 */
+  SignupTerms: undefined;
   Signup: undefined;
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   CategoryAdd: undefined;
@@ -28,7 +30,15 @@ export type RootStackParamList = {
   /** 추출 정보 수정 */
   FactsEdit: { id: string };
   /** 스와이프 분류 */
-  Sort: undefined;
+  /**
+   * mode: new 새 캡처 / past 지난 캡처, limit: 이번에 분류할 장수 (12장 이하면 전부, 많으면 10장)
+   * onboarding: 처음 세팅의 첫 분류면 끝나고 첫 결과 화면으로
+   */
+  Sort: { mode?: 'new' | 'past'; limit?: number; onboarding?: boolean } | undefined;
+  /** 처음 세팅 ① 사진 접근 안내 ② 범위 고르기 ③ 첫 결과 */
+  OnboardingPhoto: undefined;
+  OnboardingRange: undefined;
+  OnboardingResult: { practice: number; reference: number };
   /** 개발용 화면 목차 (홈 MoA 로고 길게 누르기) */
   DevIndex: undefined;
 };

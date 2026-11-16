@@ -259,6 +259,7 @@ export type ServerCapture = {
   summary: string | null;
   deadline: { status: 'FOUND' | 'UNCLEAR' | 'NONE'; date: string | null; label: string | null; box: ServerBox | null } | null;
   snooze_until: string | null;
+  checklist_progress?: { done: number; total: number } | null;
   dismissed: boolean;
   created_at: string;
   status_changed_at: string;

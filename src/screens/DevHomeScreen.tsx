@@ -25,6 +25,7 @@ export function DevHomeScreen() {
     { label: 'S12C 알림 권한 안내', code: 'D-05', go: () => nav.navigate('NotificationPermission') },
     { label: 'S12D 위치 권한 안내', code: 'D-04, D-05', go: () => nav.navigate('LocationPermission') },
     { label: 'S04A 사진 권한 거부', code: 'A-02', go: () => nav.navigate('PhotoPermission') },
+    { label: '처음 세팅 (사진 접근 → 범위 → 첫 분류 → 첫 결과)', code: 'A-01', go: () => nav.navigate('OnboardingPhoto') },
   ];
 
   return (
