@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
@@ -7,6 +7,7 @@ import { Screen } from '../components/Screen';
 import { FormField } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts } from '../theme';
+import { authenticate } from '../services/api';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -15,9 +16,19 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const canSubmit = EMAIL_RE.test(email) && password.length > 0;
-  const login = () => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+  const login = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await authenticate('/auth/login', { email: email.trim(), password });
+      navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+    } catch (error) {
+      Alert.alert('로그인 실패', error instanceof Error ? error.message : '다시 시도해 주세요.');
+    } finally { setLoading(false); }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -54,7 +65,7 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStackPara
         </View>
 
         <View style={{ gap: 12 }}>
-          <Button label="로그인" onPress={login} disabled={!canSubmit} />
+          <Button label={loading ? '로그인 중...' : '로그인'} onPress={login} disabled={!canSubmit || loading} />
           <Button label="회원가입" variant="secondary" onPress={() => navigation.navigate('Signup')} />
         </View>
       </ScrollView>
@@ -68,6 +79,7 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const emailError = email && !EMAIL_RE.test(email) ? '이메일 형식을 확인해 주세요.' : undefined;
   const nicknameError =
@@ -78,7 +90,16 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
   const canSubmit =
     !!email && !!nickname && !!password && !!confirm && !emailError && !nicknameError && !passwordError && !confirmError;
 
-  const signup = () => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+  const signup = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await authenticate('/auth/signup', { email: email.trim(), nickname: nickname.trim(), password });
+      navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+    } catch (error) {
+      Alert.alert('회원가입 실패', error instanceof Error ? error.message : '다시 시도해 주세요.');
+    } finally { setLoading(false); }
+  };
 
   return (
     <Screen
@@ -88,7 +109,7 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
       footer={
         <View style={styles.actions}>
           <Button label="취소" variant="secondary" onPress={navigation.goBack} style={styles.flex} />
-          <Button label="가입하기" onPress={signup} disabled={!canSubmit} style={styles.flex} />
+          <Button label={loading ? '가입 중...' : '가입하기'} onPress={signup} disabled={!canSubmit || loading} style={styles.flex} />
         </View>
       }
     >
