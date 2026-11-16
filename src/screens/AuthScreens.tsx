@@ -9,6 +9,8 @@ import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts } from '../theme';
 import { isOnboardingDone } from '../store/home';
 import { MOCK_LOGIN_FAIL_EMAIL, MOCK_TAKEN_EMAIL } from '../mock/failures';
+import { authenticate } from '../services/api';
+import { USE_SERVER } from '../services/config';
 import { Check } from 'lucide-react-native';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,11 +21,23 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const canSubmit = EMAIL_RE.test(email) && password.length > 0;
-  const login = () => {
-    // 401 INVALID_CREDENTIALS: 이메일과 비밀번호 중 무엇이 틀렸는지는 알려주지 않아요 (명세서)
-    if (email.trim().toLowerCase() === MOCK_LOGIN_FAIL_EMAIL) {
+  const login = async () => {
+    if (loading) return;
+    if (USE_SERVER) {
+      setLoading(true);
+      try {
+        await authenticate('/auth/login', { email: email.trim(), password });
+      } catch (e) {
+        // 401 INVALID_CREDENTIALS: 이메일과 비밀번호 중 무엇이 틀렸는지는 알려주지 않아요 (명세서)
+        setLoginError(e instanceof Error ? e.message : '이메일 또는 비밀번호가 맞지 않아요');
+        return;
+      } finally {
+        setLoading(false);
+      }
+    } else if (email.trim().toLowerCase() === MOCK_LOGIN_FAIL_EMAIL) {
       setLoginError('이메일 또는 비밀번호가 맞지 않아요');
       return;
     }
@@ -77,7 +91,7 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStackPara
         </View>
 
         <View style={{ gap: 12 }}>
-          <Button label="로그인" onPress={login} disabled={!canSubmit} />
+          <Button label={loading ? '로그인 중...' : '로그인'} onPress={login} disabled={!canSubmit || loading} />
           <Button label="회원가입" variant="secondary" onPress={() => navigation.navigate('SignupTerms')} />
         </View>
       </ScrollView>
@@ -93,6 +107,8 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
   const [confirm, setConfirm] = useState('');
   /** 409 EMAIL_ALREADY_EXISTS */
   const [takenEmail, setTakenEmail] = useState<string | null>(null);
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const emailError =
     email && !EMAIL_RE.test(email)
@@ -108,8 +124,22 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
   const canSubmit =
     !!email && !!nickname && !!password && !!confirm && !emailError && !nicknameError && !passwordError && !confirmError;
 
-  const signup = () => {
-    if (email.trim().toLowerCase() === MOCK_TAKEN_EMAIL) {
+  const signup = async () => {
+    if (loading) return;
+    setSignupError(null);
+    if (USE_SERVER) {
+      setLoading(true);
+      try {
+        await authenticate('/auth/signup', { email: email.trim(), nickname: nickname.trim(), password });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : '가입하지 못했어요. 다시 시도해 주세요.';
+        if (message.includes('이미')) setTakenEmail(email);
+        else setSignupError(message);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    } else if (email.trim().toLowerCase() === MOCK_TAKEN_EMAIL) {
       setTakenEmail(email);
       return;
     }
@@ -125,7 +155,7 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
       footer={
         <View style={styles.actions}>
           <Button label="취소" variant="secondary" onPress={navigation.goBack} style={styles.flex} />
-          <Button label="가입하기" onPress={signup} disabled={!canSubmit} style={styles.flex} />
+          <Button label={loading ? '가입 중...' : '가입하기'} onPress={signup} disabled={!canSubmit || loading} style={styles.flex} />
         </View>
       }
     >
@@ -167,6 +197,11 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
         autoCapitalize="none"
         error={confirmError}
       />
+      {signupError && (
+        <Text style={styles.formError} accessibilityRole="alert">
+          {signupError}
+        </Text>
+      )}
       <Pressable onPress={() => navigation.popTo('Login')} hitSlop={8}>
         <Text style={styles.switchText}>
           이미 계정이 있나요? <Text style={{ fontFamily: fonts.bold, color: colors.primary }}>로그인</Text>

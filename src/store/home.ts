@@ -1,12 +1,15 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { UNSORTED_SCREENSHOTS, type Screenshot } from '../mock/screenshots';
+import { USE_SERVER } from '../services/config';
+import { loadUnsortedScreenshots } from '../services/screenshots';
 import { daysLeftOf, dayKey, isSnoozed, parseDay, useCaptures, type Capture } from './practices';
 
 /* ═════════ 새 캡처 안내 카드 (명세서: 앱이 계산, 서버 API 없음) ═════════
  * 기기 스크린샷 중 baseline_at 이후 + 아직 분류 안 한 것 = 새 캡처
  * baseline_at 이전 + 분류 안 한 것 = 지난 캡처
  *
- * TODO(합칠 때): 이 부분만 이화님 브랜치의 loadUnsortedScreenshots() 로 바꾸면 돼요.
+ * 서버 모드(USE_SERVER)면 기기 스크린샷에서 분류 안 한 것을 불러오고, 아니면 목업이에요.
+ * TODO(API 명세): baseline_at 으로 새 캡처 / 지난 캡처 나누기 — 지금 서버 모드는 전부 새 캡처
  */
 
 /** 테스트용: 새 캡처 개수를 바꿔 카드 4종을 확인해보세요 (0 / 2 / 9 / 20 / 42) */
@@ -27,10 +30,10 @@ const makeItems = (n: number): Screenshot[] =>
   Array.from({ length: n }, (_, i) => UNSORTED_SCREENSHOTS[i] ?? { id: `shot-extra-${i}`, capturedAt: '' });
 
 let ncState: NewCaptureState = {
-  loading: false,
+  loading: USE_SERVER,
   error: null,
-  items: makeItems(MOCK_NEW_COUNT),
-  pastItems: Array.from({ length: MOCK_PAST_COUNT }, (_, i) => ({ id: `past-${i + 1}`, capturedAt: '' })),
+  items: USE_SERVER ? [] : makeItems(MOCK_NEW_COUNT),
+  pastItems: USE_SERVER ? [] : Array.from({ length: MOCK_PAST_COUNT }, (_, i) => ({ id: `past-${i + 1}`, capturedAt: '' })),
   collapsedOn: null,
 };
 const ncListeners = new Set<() => void>();
@@ -52,8 +55,20 @@ export function useNewCaptures() {
     count: s.items.length,
     pastCount: s.pastItems.length,
     collapsedToday: s.collapsedOn === dayKey(new Date()),
-    retry: () => setNc({ error: null }),
+    retry: refreshNewCaptures,
   };
+}
+
+/** 기기 스크린샷 다시 불러오기 (서버 모드). 홈에 들어올 때마다 불러요 */
+export async function refreshNewCaptures() {
+  if (!USE_SERVER) return;
+  setNc({ loading: ncState.items.length === 0, error: null });
+  try {
+    const items = await loadUnsortedScreenshots();
+    setNc({ items, loading: false });
+  } catch (e) {
+    setNc({ loading: false, error: e instanceof Error ? e.message : '사진을 불러오지 못했어요.' });
+  }
 }
 
 /** [나중에]: 오늘은 한 줄로 접기 */

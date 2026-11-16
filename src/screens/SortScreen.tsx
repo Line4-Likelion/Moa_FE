@@ -32,6 +32,9 @@ import type { Screenshot } from '../mock/screenshots';
 import type { RootStackParamList } from '../navigation/types';
 import { batchSizeFor, getSortSource, removeFromUnsorted } from '../store/home';
 import { changeSort, classifyShot } from '../store/practices';
+import * as MediaLibrary from 'expo-media-library/legacy';
+import { cancelClassification, changeClassification, saveClassification } from '../services/api';
+import { USE_SERVER } from '../services/config';
 import { colors, fonts, radius } from '../theme';
 
 type Decision = 'practice' | 'reference' | 'delete';
@@ -85,6 +88,10 @@ export function SortScreen() {
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState<BatchResult | null>(null);
   const [showCoach, setShowCoach] = useState(!coachSeen);
+  /** 서버에 저장된 분류 기록 id (서버 모드) */
+  const [serverIds, setServerIds] = useState<Record<string, number>>({});
+  /** 서버 저장 중 연속 스와이프 막기 */
+  const saving = useRef(false);
   /** 분류 저장 실패 시 다시 시도할 방향 */
   const [saveError, setSaveError] = useState<Decision | null>(null);
 
@@ -107,6 +114,17 @@ export function SortScreen() {
       setDeleteState((prev) => ({ ...prev, ...states }));
       then(states);
     };
+    if (USE_SERVER) {
+      // 실기기: 안드로이드 시스템 삭제 팝업이 직접 떠요. 거부하면 false
+      MediaLibrary.deleteAssetsAsync(ids)
+        .then((ok) => settle(ok))
+        .catch(() => {
+          Alert.alert('삭제 실패', '사진을 삭제하지 못했어요. 다음에 다시 보여드릴게요.');
+          settle(false);
+        });
+      return;
+    }
+    // 목업: 시스템 팝업 대신 비슷한 확인창
     Alert.alert(
       `사진 ${ids.length}장을 삭제할까요?`,
       '기기 휴지통으로 옮겨져요.',
@@ -149,11 +167,37 @@ export function SortScreen() {
     else show(del);
   };
 
-  const decide = (decision: Decision) => {
-    if (!current) return;
+  const decide = async (decision: Decision) => {
+    if (!current || saving.current) return;
     setSaveError(null);
     const prev = decisions[current.id];
     const prevCapture = captureIds[current.id];
+
+    // 서버 모드: 서버에 먼저 저장하고, 성공해야 다음 사진으로 넘어가요
+    if (USE_SERVER && prev !== decision) {
+      saving.current = true;
+      try {
+        const recordId = serverIds[current.id];
+        if (decision === 'delete') {
+          if (recordId) await cancelClassification(recordId);
+          setServerIds((old) => {
+            const next = { ...old };
+            delete next[current.id];
+            return next;
+          });
+        } else {
+          const value = decision === 'practice' ? 'PRACTICE' : 'REFERENCE';
+          const record = recordId ? await changeClassification(recordId, value) : await saveClassification(current.id, value);
+          setServerIds((old) => ({ ...old, [current.id]: record.id }));
+        }
+      } catch {
+        // 저장 실패: 카드는 그대로 두고 재시도 안내
+        setSaveError(decision);
+        return;
+      } finally {
+        saving.current = false;
+      }
+    }
 
     // 서버 저장: 처음이면 classify, 이미 분류했으면 sort 변경
     const nextCaptureIds = { ...captureIds };
@@ -221,6 +265,7 @@ export function SortScreen() {
     setBatch(source.slice(0, batchSizeFor(source.length)));
     setDecisions({});
     setCaptureIds({});
+    setServerIds({});
     setDeleteState({});
     setMinIndex(0);
     setIndex(0);
