@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronRight, Flame, RefreshCw } from 'lucide-react-native';
 import { Button } from '../components/Button';
@@ -12,6 +12,7 @@ import {
   completedOn,
   expandNewCaptures,
   moveOldToPast,
+  refreshNewCaptures,
   tierOf,
   useHomeData,
   useNewCaptures,
@@ -37,6 +38,13 @@ export function HomeScreen() {
   const hideToast = useCallback(() => setToastState(null), []);
 
   const startSort = (limit: number) => nav.navigate('Sort', { mode: 'new', limit });
+
+  // 서버 모드: 홈에 들어올 때마다 기기 스크린샷을 다시 세요 (목업 모드에서는 아무것도 안 해요)
+  useFocusEffect(
+    useCallback(() => {
+      refreshNewCaptures();
+    }, []),
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
