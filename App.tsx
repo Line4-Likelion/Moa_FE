@@ -19,6 +19,7 @@ import { DevHomeScreen } from './src/screens/DevHomeScreen';
 import { PracticeScreen } from './src/screens/PracticeScreen';
 import { PracticeDetailScreen } from './src/screens/PracticeDetailScreen';
 import { OriginalViewScreen } from './src/screens/OriginalViewScreen';
+import { ReferenceDetailScreen } from './src/screens/ReferenceDetailScreen';
 import { FactsEditScreen } from './src/screens/FactsEditScreen';
 import { OnboardingPhotoScreen, OnboardingRangeScreen, OnboardingResultScreen } from './src/screens/OnboardingScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -122,6 +123,7 @@ export default function App() {
           <Stack.Screen name="PracticeDetail" component={PracticeDetailScreen} />
           <Stack.Screen name="OriginalView" component={OriginalViewScreen} options={{ animation: 'fade' }} />
           <Stack.Screen name="FactsEdit" component={FactsEditScreen} />
+          <Stack.Screen name="ReferenceDetail" component={ReferenceDetailScreen} />
           <Stack.Screen name="OnboardingPhoto" component={OnboardingPhotoScreen} />
           <Stack.Screen name="OnboardingRange" component={OnboardingRangeScreen} />
           <Stack.Screen name="OnboardingResult" component={OnboardingResultScreen} options={{ gestureEnabled: false }} />

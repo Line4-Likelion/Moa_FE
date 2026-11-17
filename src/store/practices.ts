@@ -1206,6 +1206,20 @@ async function prepareUpload(uri: string): Promise<string> {
   }
 }
 
+const MAX_UPLOADS = 2;
+let activeUploads = 0;
+const uploadWaiters: (() => void)[] = [];
+async function withUploadSlot<T>(task: () => Promise<T>): Promise<T> {
+  while (activeUploads >= MAX_UPLOADS) await new Promise<void>((resolve) => uploadWaiters.push(resolve));
+  activeUploads++;
+  try {
+    return await task();
+  } finally {
+    activeUploads--;
+    uploadWaiters.shift()?.();
+  }
+}
+
 /** 실천으로 분류한 사진을 올려 AI 분석을 요청하고, 끝날 때까지 진행 상태를 확인해요 */
 export async function startAnalysis(captureId: string | number, fileKey: string, imageUri?: string | null) {
   const id = String(captureId);
@@ -1217,10 +1231,14 @@ export async function startAnalysis(captureId: string | number, fileKey: string,
     // 아이폰의 ph:// 같은 주소는 업로드가 안 돼서, 기기에서 읽을 수 있는 파일 주소로 바꿔서 올려요
     const uri = (await resolveUri(fileKey)) ?? imageUri ?? state.captures.find((c) => c.id === id)?.uri;
     if (!uri) throw new Error('기기에서 사진을 찾지 못했어요. 사진 접근 권한을 확인해 주세요.');
-    const upload = await prepareUpload(uri);
-    console.log(`[moa] 분석 요청 POST ${api.apiBaseUrl}/captures/${id}/analysis (image=${upload})`);
-    const job = await api.requestAnalysis(id, upload);
-    console.log(`[moa] 분석 접수 job_id=${job.job_id} status=${job.status}`);
+    // 한꺼번에 여러 장을 보내면 서버의 분석 요청 제한(429)에 걸려서, 업로드는 동시에 2장까지만 해요
+    const job = await withUploadSlot(async () => {
+      const upload = await prepareUpload(uri);
+      console.log(`[moa] 분석 요청 POST ${api.apiBaseUrl}/captures/${id}/analysis (image=${upload})`);
+      const accepted = await api.requestAnalysis(id, upload);
+      console.log(`[moa] 분석 접수 job_id=${accepted.job_id} status=${accepted.status}`);
+      return accepted;
+    });
     await pollAnalysis(id, job.job_id, job.poll_after_ms);
   } catch (error) {
     patch([id], (c) => ({
@@ -1235,4 +1253,92 @@ export async function startAnalysis(captureId: string | number, fileKey: string,
   } finally {
     analyzing.delete(id);
   }
+}
+
+/* ───────── 참고함: 실천으로 바꾸기 · 삭제 (한 장 · 여러 장) ───────── */
+
+export type BatchResult = { ok: string[]; failed: string[]; error?: unknown };
+
+/**
+ * 참고 → 실천으로 바꾸기 (여러 장)
+ * 서버 분류를 PRACTICE 로 바꾸고(PATCH /screenshot-classifications/{id}), 바뀐 항목마다 AI 분석을 시작해요 (changeSort 'ACT').
+ * 서버 분류 id 는 캡처 id 와 같아요. 일부만 실패해도 성공한 것은 옮겨요.
+ */
+export async function referencesToPractice(ids: string[]): Promise<BatchResult> {
+  const ok: string[] = [];
+  const failed: string[] = [];
+  let error: unknown;
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        if (USE_SERVER) await api.changeClassification(Number(id), 'PRACTICE');
+        ok.push(id);
+      } catch (e) {
+        console.warn('[moa] 실천으로 바꾸기 실패', id, e);
+        error ??= e;
+        failed.push(id);
+      }
+    }),
+  );
+  ok.forEach((id) => changeSort(id, 'ACT'));
+  return { ok, failed, error };
+}
+
+/** 한 장 버전. 실패하면 던져요(화면은 그대로) */
+export async function referenceToPractice(id: string) {
+  const result = await referencesToPractice([id]);
+  if (result.failed.length) throw result.error ?? new Error('실천으로 바꾸지 못했어요.');
+}
+
+export type DeleteResult = { status: 'done' | 'cancelled'; deleted: string[]; failed: string[]; error?: unknown };
+
+/**
+ * 참고 항목 삭제 (여러 장): 기기에서 사진을 먼저 지우고(안드로이드 시스템 삭제 팝업 — 여러 장도 한 번에),
+ * 허용했을 때만 서버 기록(DELETE /captures/{id})을 지워요. 거부하면 아무것도 하지 않고 'cancelled'.
+ */
+export async function deleteReferences(ids: string[]): Promise<DeleteResult> {
+  const targets = state.captures.filter((c) => ids.includes(c.id));
+  if (!targets.length) return { status: 'cancelled', deleted: [], failed: [] };
+
+  if (!USE_SERVER) {
+    targets.forEach((t) => dropCapture(t.id));
+    return { status: 'done', deleted: targets.map((t) => t.id), failed: [] };
+  }
+
+  if (!MediaLibrary) throw new Error('이 앱 빌드에서는 사진 삭제를 쓸 수 없어요.');
+  // 이미 기기에서 지워진 사진이면(예전에 지우고 서버 삭제만 실패한 경우) 팝업 대상에서 빼고 서버 기록만 지워요
+  const onDevice: string[] = [];
+  for (const t of targets) {
+    const exists = await MediaLibrary.getAssetInfoAsync(t.file_key)
+      .then((info) => !!info)
+      .catch(() => false);
+    if (exists) onDevice.push(t.file_key);
+  }
+  if (onDevice.length && !(await MediaLibrary.deleteAssetsAsync(onDevice))) {
+    return { status: 'cancelled', deleted: [], failed: [] };
+  }
+
+  const results = await Promise.allSettled(targets.map((t) => api.deleteCapture(t.id)));
+  const deleted: string[] = [];
+  const failed: string[] = [];
+  let error: unknown;
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      deleted.push(targets[i].id);
+      dropCapture(targets[i].id);
+    } else {
+      console.warn('[moa] 서버 기록 삭제 실패', targets[i].id, r.reason);
+      error ??= r.reason;
+      failed.push(targets[i].id);
+    }
+  });
+  return { status: 'done', deleted, failed, error };
+}
+
+/** 한 장 버전: 'deleted' 또는 'cancelled'(팝업 거부) */
+export async function deleteReference(id: string): Promise<'deleted' | 'cancelled'> {
+  const result = await deleteReferences([id]);
+  if (result.status === 'cancelled') return 'cancelled';
+  if (result.failed.length) throw result.error ?? new Error('서버 기록을 삭제하지 못했어요.');
+  return 'deleted';
 }
