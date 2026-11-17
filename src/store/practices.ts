@@ -954,6 +954,13 @@ const uriCache = new Map<string, string | null>();
 async function resolveUri(fileKey: string): Promise<string | null> {
   if (Platform.OS === 'web' || !MediaLibrary) return null;
   if (uriCache.has(fileKey)) return uriCache.get(fileKey) ?? null;
+  // 안드로이드: 사진 ID(숫자)로 주소를 바로 만들어요.
+  // getAssetInfoAsync 는 사진 위치(EXIF)까지 읽으려다 ACCESS_MEDIA_LOCATION 권한이 없으면 실패해서 쓰지 않아요
+  if (Platform.OS === 'android' && /^\d+$/.test(fileKey)) {
+    const uri = `content://media/external/images/media/${fileKey}`;
+    uriCache.set(fileKey, uri);
+    return uri;
+  }
   try {
     const info = await MediaLibrary.getAssetInfoAsync(fileKey);
     const uri = info?.localUri ?? info?.uri ?? null;
