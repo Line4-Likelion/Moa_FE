@@ -337,14 +337,70 @@ function mimeOf(uri: string) {
   return 'image/jpeg';
 }
 
+/**
+ * 사진(FormData) 업로드
+ *
+ * 이 Expo 버전의 기본 fetch(expo/fetch)는 { uri, name, type } 모양의 사진 첨부를 지원하지 않아서
+ * "Unsupported FormDataPart implementation" 오류로 요청이 나가지 못해요.
+ * 그래서 사진 업로드만 React Native 기본 전송(XMLHttpRequest)으로 보내요. 이 방식은 { uri, name, type } 첨부를 지원해요.
+ * Content-Type 은 직접 넣지 않아요 (boundary 를 자동으로 붙여줘요).
+ */
+function sendForm(url: string, form: FormData, timeoutMs: number): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.timeout = timeoutMs;
+    xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+    xhr.onerror = () => reject(new Error('network error'));
+    xhr.ontimeout = () => reject(new Error('timeout'));
+    xhr.send(form);
+  });
+}
+
+async function uploadForm<T>(path: string, makeForm: () => FormData, timeoutMs = 60000, retry = true): Promise<T> {
+  if (!baseUrl) throw new ApiError(0, 'NO_BASE_URL', '서버 주소가 설정되지 않았어요. (.env.local 의 EXPO_PUBLIC_API_URL)');
+
+  let res: { status: number; text: string };
+  try {
+    res = await sendForm(`${baseUrl}${path}`, makeForm(), timeoutMs);
+  } catch (cause) {
+    console.warn(`[moa] 네트워크 오류 POST ${baseUrl}${path}`, cause);
+    throw new ApiError(0, 'NETWORK', '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.');
+  }
+
+  // 토큰 만료: 한 번만 재발급해서 다시 시도 (FormData 는 새로 만들어서 보내요)
+  if (res.status === 401 && retry && refreshToken) {
+    if (await reissue()) return uploadForm<T>(path, makeForm, timeoutMs, false);
+    clearSession();
+    sessionExpiredHandler?.();
+  }
+
+  let json: BaseResponse<T> | null = null;
+  try {
+    json = res.text ? (JSON.parse(res.text) as BaseResponse<T>) : null;
+  } catch {
+    json = null;
+  }
+  if (res.status < 200 || res.status >= 300 || (json && json.success === false)) {
+    console.warn(`[moa] 업로드 실패 ${res.status} POST ${baseUrl}${path}`, res.text?.slice(0, 300));
+    throw new ApiError(res.status, json?.code, json?.message || '사진을 올리지 못했어요. 다시 시도해 주세요.', json?.data);
+  }
+  return (json?.data ?? undefined) as T;
+}
+
 /** 실천으로 분류한 사진을 올려 AI 분석을 시작해요. (이미지는 분석 후 서버에서 버려요) */
 export function requestAnalysis(captureId: number | string, imageUri: string) {
   const type = mimeOf(imageUri);
-  const form = new FormData();
-  form.append('image', { uri: imageUri, name: `capture.${type.split('/')[1]}`, type } as unknown as Blob);
-  return request<{ job_id: number; capture_id: number; status: AnalysisJob['status']; poll_after_ms: number }>(
+  const makeForm = () => {
+    const form = new FormData();
+    // 필드명 image (백엔드 요구사항)
+    form.append('image', { uri: imageUri, name: `capture.${type.split('/')[1]}`, type } as unknown as Blob);
+    return form;
+  };
+  return uploadForm<{ job_id: number; capture_id: number; status: AnalysisJob['status']; poll_after_ms: number }>(
     `/captures/${captureId}/analysis`,
-    { method: 'POST', body: form, timeoutMs: 60000 },
+    makeForm,
   );
 }
 export async function getAnalysisJobs(jobIds: number[]) {
