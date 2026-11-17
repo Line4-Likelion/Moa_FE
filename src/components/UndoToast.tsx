@@ -76,6 +76,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
   },
-  text: { flex: 1, fontFamily: fonts.medium, fontSize: 13, color: '#fff' },
-  undo: { fontFamily: fonts.bold, fontSize: 13, color: '#b9ddb0' },
+  text: { flex: 1, includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: '#fff' },
+  undo: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, color: '#b9ddb0' },
 });

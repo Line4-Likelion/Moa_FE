@@ -44,8 +44,8 @@ export function ExcludeDialog({
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   dialog: { width: '100%', backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16 },
-  title: { fontFamily: fonts.bold, fontSize: 18, color: colors.text, textAlign: 'center' },
-  body: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: '#3b443e', textAlign: 'center', marginTop: 10 },
+  title: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, color: colors.text, textAlign: 'center' },
+  body: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: '#3b443e', textAlign: 'center', marginTop: 10 },
   info: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f3f6f1',
   },
-  infoText: { fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
+  infoText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
   actions: { flexDirection: 'row', gap: 8, marginTop: 18 },
   btn: { flex: 1, height: 48, borderRadius: radius.button, alignItems: 'center', justifyContent: 'center' },
-  btnText: { fontFamily: fonts.bold, fontSize: 15 },
+  btnText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15 },
 });

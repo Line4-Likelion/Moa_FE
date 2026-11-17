@@ -510,7 +510,7 @@ function PracticeCard({
           <View style={[styles.catTag, faded && styles.catTagFaded]}>
             <Text style={[styles.catTagText, faded && { color: colors.textSub }]}>{p.category}</Text>
           </View>
-          <Text style={[styles.due, { color: due.color, fontFamily: due.bold ? fonts.bold : fonts.medium }]}>
+          <Text style={[styles.due, { color: due.color, includeFontPadding: false, fontFamily: due.bold ? fonts.bold : fonts.medium }]}>
             {due.text}
           </Text>
         </View>
@@ -538,7 +538,7 @@ function PracticeCard({
               <Text style={[styles.smallBtnText, { color: colors.text }]}>제외</Text>
             </Pressable>
             <Pressable onPress={onComplete} accessibilityRole="button" style={[styles.smallBtn, styles.smallBtnPrimary]}>
-              <Text style={[styles.smallBtnText, { color: '#fff', fontFamily: fonts.bold }]}>완료</Text>
+              <Text style={[styles.smallBtnText, { color: '#fff', includeFontPadding: false, fontFamily: fonts.bold }]}>완료</Text>
             </Pressable>
           </View>
         )}
@@ -606,7 +606,7 @@ function CompletionCard() {
                   ]}
                 />
               </View>
-              <Text style={[styles.barLabel, last && { color: colors.primary, fontFamily: fonts.bold }]}>
+              <Text style={[styles.barLabel, last && { color: colors.primary, includeFontPadding: false, fontFamily: fonts.bold }]}>
                 {last ? '이번 주' : `${d.getMonth() + 1}/${d.getDate()}`}
               </Text>
             </View>
@@ -701,7 +701,7 @@ function SortSheet({
               accessibilityState={{ selected: on }}
               style={styles.sheetRow}
             >
-              <Text style={[styles.sheetRowText, on && { fontFamily: fonts.bold, color: colors.primary }]}>{o.label}</Text>
+              <Text style={[styles.sheetRowText, on && { includeFontPadding: false, fontFamily: fonts.bold, color: colors.primary }]}>{o.label}</Text>
               {on && <Check size={18} color={colors.primary} strokeWidth={2.4} />}
             </Pressable>
           );
@@ -753,14 +753,14 @@ function CategorySheet({
                 accessibilityState={{ selected: on }}
                 style={styles.sheetRow}
               >
-                <Text style={[styles.sheetRowText, on && { fontFamily: fonts.bold, color: colors.primary }]}>{c}</Text>
+                <Text style={[styles.sheetRowText, on && { includeFontPadding: false, fontFamily: fonts.bold, color: colors.primary }]}>{c}</Text>
                 <View style={[styles.radio, on && styles.radioOn]} />
               </Pressable>
             );
           })}
           <Pressable onPress={onAddNew} accessibilityRole="button" style={[styles.sheetRow, { justifyContent: 'flex-start', gap: 6 }]}>
             <Plus size={16} color={colors.primary} strokeWidth={2.2} />
-            <Text style={[styles.sheetRowText, { color: colors.primary, fontFamily: fonts.medium }]}>새 카테고리</Text>
+            <Text style={[styles.sheetRowText, { color: colors.primary, includeFontPadding: false, fontFamily: fonts.medium }]}>새 카테고리</Text>
           </Pressable>
         </ScrollView>
         <Button label="변경하기" disabled={!selected} onPress={() => selected && onApply(selected)} style={{ marginTop: 14 }} />
@@ -774,25 +774,25 @@ function CategorySheet({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   loadError: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 6 },
-  loadErrorTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
-  loadErrorDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
+  loadErrorTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  loadErrorDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
 
   statCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, gap: 14 },
   statHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  statLabel: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
-  statSub: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
-  statEmpty: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, marginTop: 4 },
-  statRate: { fontFamily: fonts.serif, fontSize: 30, color: colors.primary },
-  statRateUnit: { fontFamily: fonts.medium, fontSize: 15, color: colors.primary },
+  statLabel: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.text },
+  statSub: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  statEmpty: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, marginTop: 4 },
+  statRate: { includeFontPadding: false, fontFamily: fonts.serif, fontSize: 30, color: colors.primary },
+  statRateUnit: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 15, color: colors.primary },
   bars: { flexDirection: 'row', gap: 8, height: 92 },
   barCol: { flex: 1, alignItems: 'center', gap: 6 },
   barTrack: { flex: 1, width: '100%', maxWidth: 28, borderRadius: 6, backgroundColor: '#f1f0ec', justifyContent: 'flex-end', overflow: 'hidden' },
   barFill: { width: '100%', borderRadius: 6, backgroundColor: colors.primary },
-  barLabel: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSub },
+  barLabel: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 10, color: colors.textSub },
 
   header: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  title: { fontFamily: fonts.bold, fontSize: 22, letterSpacing: -0.5, color: colors.text },
-  headerAction: { fontFamily: fonts.medium, fontSize: 14, color: colors.primary },
+  title: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 22, letterSpacing: -0.5, color: colors.text },
+  headerAction: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.primary },
 
   top: { paddingHorizontal: 20, gap: 12 },
   search: {
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.button,
   },
-  searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 14, color: colors.text, paddingVertical: 0 },
+  searchInput: { flex: 1, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, color: colors.text, paddingVertical: 0 },
 
   segment: { flexDirection: 'row', padding: 4, gap: 4, backgroundColor: '#eceae4', borderRadius: radius.button },
   segmentItem: { flex: 1, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
@@ -816,8 +816,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
-  segmentText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textSub },
-  segmentTextOn: { fontFamily: fonts.bold, color: colors.text },
+  segmentText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.textSub },
+  segmentTextOn: { includeFontPadding: false, fontFamily: fonts.bold, color: colors.text },
 
   chips: { gap: 6, paddingHorizontal: 20, paddingTop: 14 },
   chip: {
@@ -833,8 +833,8 @@ const styles = StyleSheet.create({
   },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipAdd: { borderStyle: 'dashed', borderColor: '#c9cbc4', backgroundColor: 'transparent' },
-  chipText: { fontFamily: fonts.medium, fontSize: 13, color: '#3b443e' },
-  chipTextOn: { fontFamily: fonts.bold, color: '#fff' },
+  chipText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: '#3b443e' },
+  chipTextOn: { includeFontPadding: false, fontFamily: fonts.bold, color: '#fff' },
 
   listHeader: {
     flexDirection: 'row',
@@ -844,19 +844,19 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 8,
   },
-  listTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
+  listTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.text },
   sortButton: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  sortText: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  sortText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
 
   list: { paddingHorizontal: 20, gap: 10 },
   inlineEmpty: { alignItems: 'center', gap: 4, paddingVertical: 28, borderRadius: radius.card, backgroundColor: colors.surface },
-  inlineEmptyTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
-  inlineEmptyDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
-  noResults: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSub, textAlign: 'center', paddingVertical: 40 },
+  inlineEmptyTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  inlineEmptyDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
+  noResults: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, color: colors.textSub, textAlign: 'center', paddingVertical: 40 },
   overdueHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  overdueHeadText: { fontFamily: fonts.bold, fontSize: 13, color: colors.error },
-  holdHead: { fontFamily: fonts.bold, fontSize: 13, color: colors.textSub, marginTop: 10 },
-  footNote: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub, marginTop: 6 },
+  overdueHeadText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, color: colors.error },
+  holdHead: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, color: colors.textSub, marginTop: 10 },
+  footNote: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub, marginTop: 6 },
 
   card: {
     flexDirection: 'row',
@@ -895,23 +895,23 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   catTag: { backgroundColor: '#eef3ec', borderRadius: radius.chip, paddingHorizontal: 7, paddingVertical: 2 },
   catTagFaded: { backgroundColor: '#f1f0ec' },
-  catTagText: { fontFamily: fonts.medium, fontSize: 11, color: '#4e6b57' },
+  catTagText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 11, color: '#4e6b57' },
   due: { fontSize: 12 },
-  cardTitle: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.3, color: colors.text, marginTop: 2 },
-  subtitle: { fontFamily: fonts.regular, fontSize: 13, color: '#5f665e' },
+  cardTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.3, color: colors.text, marginTop: 2 },
+  subtitle: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: '#5f665e' },
   analyzing: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  analyzingText: { fontFamily: fonts.regular, fontSize: 13, color: colors.primary },
+  analyzingText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.primary },
 
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 'auto', paddingTop: 6 },
   progressTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#eceae4', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.primary },
-  progressText: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
+  progressText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
 
   overdueActions: { flexDirection: 'row', gap: 6, marginTop: 'auto', paddingTop: 6 },
   smallBtn: { flex: 1, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   smallBtnLine: { borderWidth: 1, borderColor: '#e2e1db', backgroundColor: colors.surface },
   smallBtnPrimary: { backgroundColor: colors.primary },
-  smallBtnText: { fontFamily: fonts.medium, fontSize: 13 },
+  smallBtnText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13 },
 
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 10 },
   emptyIcon: {
@@ -923,8 +923,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  emptyTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.text },
-  emptyDesc: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: '#5f665e', textAlign: 'center' },
+  emptyTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, color: colors.text },
+  emptyDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: '#5f665e', textAlign: 'center' },
 
   actionBar: {
     flexDirection: 'row',
@@ -936,7 +936,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   actionBtn: { flex: 1, height: 48, borderRadius: radius.button, alignItems: 'center', justifyContent: 'center' },
-  actionBtnText: { fontFamily: fonts.bold, fontSize: 15 },
+  actionBtnText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15 },
 
   toast: {
     position: 'absolute',
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  toastText: { fontFamily: fonts.medium, fontSize: 13, color: '#fff' },
+  toastText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: '#fff' },
 
   scrim: { flex: 1, backgroundColor: colors.scrim },
   sheet: {
@@ -961,8 +961,8 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#dad9d3', alignSelf: 'center', marginBottom: 16 },
-  sheetTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.text, marginBottom: 4 },
-  sheetDesc: { fontFamily: fonts.regular, fontSize: 13, color: '#5f665e', marginBottom: 8 },
+  sheetTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, color: colors.text, marginBottom: 4 },
+  sheetDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: '#5f665e', marginBottom: 8 },
   sheetRow: {
     height: 48,
     flexDirection: 'row',
@@ -971,14 +971,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f0ec',
   },
-  sheetRowText: { fontFamily: fonts.regular, fontSize: 15, color: colors.text },
+  sheetRowText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 15, color: colors.text },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.8, borderColor: '#c4c2bb' },
   radioOn: { borderWidth: 6, borderColor: colors.primary },
 
   dialogWrap: { flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   dialog: { width: '100%', backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16 },
-  dialogTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.text, textAlign: 'center' },
-  dialogBody: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: '#3b443e', textAlign: 'center', marginTop: 10 },
+  dialogTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, color: colors.text, textAlign: 'center' },
+  dialogBody: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: '#3b443e', textAlign: 'center', marginTop: 10 },
   dialogInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -989,8 +989,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f3f6f1',
   },
-  dialogInfoText: { fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
+  dialogInfoText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
   dialogActions: { flexDirection: 'row', gap: 8, marginTop: 18 },
   dialogBtn: { flex: 1, height: 48, borderRadius: radius.button, alignItems: 'center', justifyContent: 'center' },
-  dialogBtnText: { fontFamily: fonts.bold, fontSize: 15 },
+  dialogBtnText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15 },
 });

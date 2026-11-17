@@ -171,12 +171,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  title: { fontFamily: fonts.bold, fontSize: 24, lineHeight: 34, letterSpacing: -0.6, color: colors.text },
-  desc: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: colors.textSub },
+  title: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 24, lineHeight: 34, letterSpacing: -0.6, color: colors.text },
+  desc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: colors.textSub },
 
   points: { gap: 12, marginTop: 20, backgroundColor: colors.surface, borderRadius: radius.card, padding: 16 },
   point: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  pointText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 21, color: colors.text },
+  pointText: { flex: 1, includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, lineHeight: 21, color: colors.text },
 
   options: { gap: 10, marginTop: 20 },
   option: {
@@ -190,10 +190,10 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   optionOn: { borderColor: colors.primary, backgroundColor: '#f8fbf6' },
-  optionLabel: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
-  optionDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
+  optionLabel: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  optionDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
   recommend: { backgroundColor: colors.tint, borderRadius: radius.chip, paddingHorizontal: 6, paddingVertical: 2 },
-  recommendText: { fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
+  recommendText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
   radio: {
     width: 22,
     height: 22,

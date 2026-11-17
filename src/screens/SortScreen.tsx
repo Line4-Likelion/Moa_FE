@@ -705,8 +705,8 @@ const styles = StyleSheet.create({
   headerSide: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   pager: { flexDirection: 'row', alignItems: 'center' },
   pagerButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  pagerText: { minWidth: 52, textAlign: 'center', fontFamily: fonts.bold, fontSize: 16, color: colors.text },
-  pagerTotal: { fontFamily: fonts.regular, color: colors.textSub },
+  pagerText: { minWidth: 52, textAlign: 'center', includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  pagerTotal: { includeFontPadding: false, fontFamily: fonts.regular, color: colors.textSub },
 
   progress: { flexDirection: 'row', gap: 4, paddingHorizontal: 20, paddingTop: 6 },
   progressSeg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.disabled },
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
   deleteHint: { alignSelf: 'center', marginTop: 18, minHeight: 44, justifyContent: 'center' },
   deleteHintInner: { alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6, borderRadius: radius.pill },
   deleteHintFilled: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.error, justifyContent: 'center' },
-  deleteHintText: { fontFamily: fonts.medium, fontSize: 12 },
+  deleteHintText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 12 },
 
   saveError: {
     flexDirection: 'row',
@@ -728,10 +728,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  saveErrorText: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
-  saveErrorBtn: { fontFamily: fonts.bold, fontSize: 13, color: colors.error, textDecorationLine: 'underline' },
+  saveErrorText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.error },
+  saveErrorBtn: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, color: colors.error, textDecorationLine: 'underline' },
   revisitHint: { alignSelf: 'center', marginTop: 4, backgroundColor: colors.tint, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  revisitHintText: { fontFamily: fonts.regular, fontSize: 12, color: colors.text },
+  revisitHintText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.text },
 
   card: {
     position: 'absolute',
@@ -766,13 +766,13 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radius.pill,
   },
-  decidedChipText: { fontFamily: fonts.bold, fontSize: 12, color: '#fff' },
+  decidedChipText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 12, color: '#fff' },
 
   tab: { position: 'absolute', width: 50, height: 56, alignItems: 'center', justifyContent: 'center', gap: 1, overflow: 'hidden' },
   tabLeft: { borderTopRightRadius: 28, borderBottomRightRadius: 28, paddingRight: 4 },
   tabRight: { borderTopLeftRadius: 28, borderBottomLeftRadius: 28, paddingLeft: 4 },
   tabContent: { width: 15, height: 15 },
-  tabText: { fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
+  tabText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
 
   coach: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -780,11 +780,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-  coachTitle: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 32, letterSpacing: -0.4, color: colors.text, textAlign: 'center' },
+  coachTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 22, lineHeight: 32, letterSpacing: -0.4, color: colors.text, textAlign: 'center' },
   coachRow: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 44 },
   coachItem: { width: 110, gap: 4 },
-  coachLabel: { fontFamily: fonts.bold, fontSize: 15 },
-  coachDesc: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
+  coachLabel: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15 },
+  coachDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
   coachHand: {
     width: 64,
     height: 64,
@@ -795,20 +795,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coachFoot: { marginTop: 44, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub, textAlign: 'center' },
+  coachFoot: { marginTop: 44, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub, textAlign: 'center' },
 
   doneHeader: { flexDirection: 'row', justifyContent: 'flex-end', marginRight: -12 },
   doneBody: { flex: 1, justifyContent: 'center', gap: 28 },
   doneIcon: { width: 72, height: 72, borderRadius: 24, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { fontFamily: fonts.bold, fontSize: 23, letterSpacing: -0.5, color: colors.text, textAlign: 'center' },
+  doneTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 23, letterSpacing: -0.5, color: colors.text, textAlign: 'center' },
   statRow: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card, paddingVertical: 16, alignItems: 'center', gap: 2 },
-  statValue: { fontFamily: fonts.serif, fontSize: 30 },
-  statLabel: { fontFamily: fonts.medium, fontSize: 13 },
+  statValue: { includeFontPadding: false, fontFamily: fonts.serif, fontSize: 30 },
+  statLabel: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13 },
   aiCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.tint, borderRadius: radius.card, padding: 16 },
   aiIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  aiTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
-  aiDesc: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  aiTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.text },
+  aiDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
 
   snackbar: {
     flexDirection: 'row',
@@ -822,8 +822,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 14,
   },
-  snackbarText: { flex: 1, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, color: colors.text },
+  snackbarText: { flex: 1, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, color: colors.text },
 
   homeLink: { height: 48, alignItems: 'center', justifyContent: 'center' },
-  homeLinkText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textSub },
+  homeLinkText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.textSub },
 });

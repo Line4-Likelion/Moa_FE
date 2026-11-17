@@ -105,7 +105,7 @@ export function HomeScreen() {
             style={styles.pastLink}
           >
             <Text style={styles.pastText}>
-              지난 캡처 {nc.pastCount.toLocaleString()}장 · <Text style={{ fontFamily: fonts.bold, color: colors.text }}>정리하기</Text>
+              지난 캡처 {nc.pastCount.toLocaleString()}장 · <Text style={{ includeFontPadding: false, fontFamily: fonts.bold, color: colors.text }}>정리하기</Text>
             </Text>
             <ChevronRight size={16} color={colors.textSub} strokeWidth={2} />
           </Pressable>
@@ -451,19 +451,19 @@ function DaySheet({ day, items, onClose }: { day: ActivityDay | null; items: Cap
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingBottom: 32, gap: 16 },
-  appBar: { height: 32, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  logo: { fontFamily: fonts.bold, fontSize: 18, letterSpacing: -0.3, color: colors.text },
+  appBar: { minHeight: 40, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  logo: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, lineHeight: 26, letterSpacing: -0.3, color: colors.text },
 
   badge: { alignSelf: 'flex-start', backgroundColor: colors.tint, borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
-  headline: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 31, letterSpacing: -0.6, color: colors.text },
-  headlineDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, marginTop: -6 },
+  badgeText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
+  headline: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 22, lineHeight: 31, letterSpacing: -0.6, color: colors.text },
+  headlineDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, marginTop: -6 },
 
   thumbRow: { flexDirection: 'row', gap: 4 },
   thumb: { flex: 1, aspectRatio: 0.85, backgroundColor: colors.skeleton, borderRadius: 6, overflow: 'hidden' },
   thumbSmall: { width: 28, height: 36, backgroundColor: colors.skeleton, borderRadius: 5, overflow: 'hidden' },
   thumbMore: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(34,46,40,0.45)', alignItems: 'center', justifyContent: 'center' },
-  thumbMoreText: { fontFamily: fonts.bold, fontSize: 16, color: '#fff' },
+  thumbMoreText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: '#fff' },
 
   fewRow: {
     flexDirection: 'row',
@@ -474,9 +474,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  fewText: { flex: 1, fontFamily: fonts.medium, fontSize: 13, color: colors.text },
+  fewText: { flex: 1, includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.text },
   fewBtn: { backgroundColor: colors.primary, borderRadius: radius.button, paddingHorizontal: 12, height: 34, justifyContent: 'center' },
-  fewBtnText: { fontFamily: fonts.bold, fontSize: 12, color: '#fff' },
+  fewBtnText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 12, color: '#fff' },
 
   collapsed: {
     flexDirection: 'row',
@@ -487,44 +487,53 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 48,
   },
-  collapsedText: { fontFamily: fonts.medium, fontSize: 13, color: colors.textSub },
-  collapsedBtn: { fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
+  collapsedText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.textSub },
+  collapsedBtn: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
 
   card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, gap: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.4, color: colors.text },
-  cardDesc: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  cardTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.4, color: colors.text },
+  cardDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: colors.tint, borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 4 },
-  seeAllText: { fontFamily: fonts.medium, fontSize: 11, color: colors.primary },
+  seeAllText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 11, color: colors.primary },
 
   procRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   procThumb: { width: 32, height: 44, borderRadius: 6, backgroundColor: colors.skeleton },
-  procTitle: { fontFamily: fonts.medium, fontSize: 14, color: colors.text },
-  procSub: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  procTitle: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.text },
+  procSub: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
   retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.tint, borderRadius: radius.chip, paddingHorizontal: 10, height: 30 },
-  retryText: { fontFamily: fonts.bold, fontSize: 12, color: colors.primary },
+  retryText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 12, color: colors.primary },
 
-  emptyText: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, paddingVertical: 8 },
+  emptyText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, paddingVertical: 8 },
   reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   check: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.8, borderColor: '#c4c2bb' },
   reminderBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  reminderText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, color: colors.text },
-  reasonTag: { fontFamily: fonts.bold, fontSize: 12 },
+  reminderText: { flex: 1, includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.text },
+  reasonTag: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 12 },
 
   streak: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.tint, borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 3 },
-  streakText: { fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
+  streakText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
   grassRow: { flexDirection: 'row', gap: CELL_GAP },
   grassCol: { flex: 1, gap: CELL_GAP },
   grassCell: { aspectRatio: 1, borderRadius: 3 },
   grassToday: { borderWidth: 1.5, borderColor: colors.primary },
-  monthCell: { flex: 1, height: 14, marginBottom: 4 },
-  monthLabel: { position: 'absolute', top: 0, width: 32, fontFamily: fonts.regular, fontSize: 10, color: colors.textSub },
+  monthCell: { flex: 1, height: 18, marginBottom: 4 },
+  monthLabel: {
+    position: 'absolute',
+    top: 0,
+    width: 36,
+    includeFontPadding: false,
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    lineHeight: 16,
+    color: colors.textSub,
+  },
   legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
   legendCell: { width: 10, height: 10, borderRadius: 2 },
-  legendText: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSub, marginHorizontal: 2 },
+  legendText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 10, color: colors.textSub, marginHorizontal: 2 },
 
   pastLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 12 },
-  pastText: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
+  pastText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub },
 
   scrim: { flex: 1, backgroundColor: colors.scrim },
   sheet: {
@@ -540,7 +549,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#dad9d3', alignSelf: 'center', marginBottom: 10 },
-  sheetTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.text },
+  sheetTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, color: colors.text },
   dayRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  dayText: { fontFamily: fonts.medium, fontSize: 14, color: colors.text },
+  dayText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.text },
 });

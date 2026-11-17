@@ -129,8 +129,8 @@ export function FactsEditScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  intro: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, color: colors.textSub },
-  label: { fontFamily: fonts.medium, fontSize: 12, color: colors.textSub },
+  intro: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, color: colors.textSub },
+  label: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 12, color: colors.textSub },
   dateField: {
     height: 48,
     flexDirection: 'row',
@@ -142,11 +142,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  dateText: { fontFamily: fonts.regular, fontSize: 15, color: colors.text },
-  hint: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
-  error: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
-  revert: { fontFamily: fonts.medium, fontSize: 12, color: colors.primary, textDecorationLine: 'underline' },
+  dateText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 15, color: colors.text },
+  hint: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
+  error: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.error },
+  revert: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 12, color: colors.primary, textDecorationLine: 'underline' },
   note: { backgroundColor: colors.tint, borderRadius: radius.card, padding: 14, gap: 4 },
-  noteTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.primary },
-  noteDesc: { fontFamily: fonts.regular, fontSize: 12, color: '#4f5a52' },
+  noteTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.primary },
+  noteDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: '#4f5a52' },
 });

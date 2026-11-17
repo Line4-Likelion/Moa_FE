@@ -37,7 +37,7 @@ export function TabBar({ state, navigation, descriptors }: BottomTabBarProps) {
               style={styles.item}
             >
               <tab.Icon size={21} color={color} strokeWidth={1.5} />
-              <Text style={[styles.label, { color, fontFamily: focused ? fonts.bold : fonts.regular }]}>
+              <Text style={[styles.label, { color, includeFontPadding: false, fontFamily: focused ? fonts.bold : fonts.regular }]}>
                 {tab.label}
               </Text>
             </Pressable>

@@ -204,7 +204,7 @@ export function SignupScreen({ navigation }: NativeStackScreenProps<RootStackPar
       )}
       <Pressable onPress={() => navigation.popTo('Login')} hitSlop={8}>
         <Text style={styles.switchText}>
-          이미 계정이 있나요? <Text style={{ fontFamily: fonts.bold, color: colors.primary }}>로그인</Text>
+          이미 계정이 있나요? <Text style={{ includeFontPadding: false, fontFamily: fonts.bold, color: colors.primary }}>로그인</Text>
         </Text>
       </Pressable>
     </Screen>
@@ -261,7 +261,7 @@ export function SignupTermsScreen({ navigation }: NativeStackScreenProps<RootSta
             >
               <CheckBox on={agreed[t.kind]} small />
               <Text style={styles.termText}>
-                <Text style={{ color: t.required ? colors.primary : colors.textSub, fontFamily: fonts.medium }}>
+                <Text style={{ color: t.required ? colors.primary : colors.textSub, includeFontPadding: false, fontFamily: fonts.medium }}>
                   {t.required ? '(필수) ' : '(선택) '}
                 </Text>
                 {t.label}
@@ -297,11 +297,11 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
   loginContent: { flexGrow: 1, justifyContent: 'center', padding: 20, gap: 32 },
   hero: { gap: 12 },
-  logo: { fontFamily: fonts.serif, fontSize: 40, lineHeight: 48, color: colors.primary },
-  tagline: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 33, color: colors.text },
-  headline: { fontFamily: fonts.serif, fontSize: 26, lineHeight: 39, color: colors.text },
-  switchText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
-  formError: { fontFamily: fonts.medium, fontSize: 13, color: colors.error },
+  logo: { includeFontPadding: false, fontFamily: fonts.serif, fontSize: 40, lineHeight: 48, color: colors.primary },
+  tagline: { includeFontPadding: false, fontFamily: fonts.serif, fontSize: 22, lineHeight: 33, color: colors.text },
+  headline: { includeFontPadding: false, fontFamily: fonts.serif, fontSize: 26, lineHeight: 39, color: colors.text },
+  switchText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
+  formError: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.error },
 
   allRow: {
     flexDirection: 'row',
@@ -314,9 +314,9 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   allRowOn: { borderColor: colors.primary },
-  allText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  allText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: colors.text },
   termRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
   termCheck: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
-  termText: { flex: 1, fontFamily: fonts.regular, fontSize: 14, color: colors.text },
+  termText: { flex: 1, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, color: colors.text },
   checkBox: { borderWidth: 1.8, borderColor: '#c4c2bb', alignItems: 'center', justifyContent: 'center' },
 });

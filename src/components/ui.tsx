@@ -50,7 +50,7 @@ export function Lines({
         <Text
           key={line}
           style={{
-            fontFamily: fonts.regular,
+            includeFontPadding: false, fontFamily: fonts.regular,
             fontSize: size,
             lineHeight: lineHeight ?? size * 1.5,
             color: colors.textSub,
@@ -156,9 +156,9 @@ export function FormField({
         style={[styles.input, error ? { borderColor: colors.error } : null]}
       />
       {error ? (
-        <Text style={[styles.fieldLabel, { fontFamily: fonts.regular, color: colors.error }]}>{error}</Text>
+        <Text style={[styles.fieldLabel, { includeFontPadding: false, fontFamily: fonts.regular, color: colors.error }]}>{error}</Text>
       ) : hint ? (
-        <Text style={[styles.fieldLabel, { fontFamily: fonts.regular, fontSize: 11 }]}>{hint}</Text>
+        <Text style={[styles.fieldLabel, { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 11 }]}>{hint}</Text>
       ) : null}
     </View>
   );
@@ -194,7 +194,7 @@ export function OptionRow({
     >
       <Text
         style={{
-          fontFamily: selected && lg ? fonts.bold : fonts.regular,
+          includeFontPadding: false, fontFamily: selected && lg ? fonts.bold : fonts.regular,
           fontSize: lg ? 15 : 14,
           color: colors.text,
         }}
@@ -233,15 +233,15 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   card: { borderRadius: radius.card, padding: 16, gap: 10 },
-  caption: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
+  caption: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
   chip: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.chip },
-  chipText: { fontFamily: fonts.bold, fontSize: 10 },
+  chipText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 10 },
   toggle: { width: 44, height: 26, borderRadius: radius.pill, padding: 3 },
   thumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
   settingControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  settingLabel: { flex: 1, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21 },
-  settingDesc: { fontFamily: fonts.regular, fontSize: 11, lineHeight: 16.5, color: colors.textSub },
-  fieldLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, color: colors.textSub },
+  settingLabel: { flex: 1, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21 },
+  settingDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16.5, color: colors.textSub },
+  fieldLabel: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, color: colors.textSub },
   input: {
     minHeight: 48,
     padding: 12,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    fontFamily: fonts.regular,
+    includeFontPadding: false, fontFamily: fonts.regular,
     fontSize: 14,
     color: colors.text,
   },
@@ -263,5 +263,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyTitle: { fontFamily: fonts.serif, fontSize: 23, color: colors.text, textAlign: 'center' },
+  emptyTitle: { includeFontPadding: false, fontFamily: fonts.serif, fontSize: 23, color: colors.text, textAlign: 'center' },
 });

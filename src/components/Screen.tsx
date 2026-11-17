@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontFamily: fonts.bold,
+    includeFontPadding: false, fontFamily: fonts.bold,
     fontSize: 20,
     letterSpacing: -0.7,
     color: colors.text,
