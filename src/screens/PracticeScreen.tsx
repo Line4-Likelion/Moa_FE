@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertCircle, Check, ChevronDown, Image as ImageIcon, Plus, Search, Sparkles } from 'lucide-react-native';
@@ -21,6 +21,7 @@ import {
   useCategories,
   useCompletionStats,
   usePractices,
+  fillMissingUris,
   type Practice,
 } from '../store/practices';
 import { colors, fonts, radius } from '../theme';
@@ -94,6 +95,12 @@ function matchesQuery(p: Practice, q: string) {
 export function PracticeScreen() {
   const nav = useNavigation<BottomTabNavigationProp<TabParamList, 'Practice'>>();
   const rootNav = useNavigation();
+  // 들어올 때마다 비어 있는 사진 주소를 다시 찾아요 (사진 권한을 나중에 준 경우 등)
+  useFocusEffect(
+    useCallback(() => {
+      fillMissingUris();
+    }, []),
+  );
   const insets = useSafeAreaInsets();
   const practices = usePractices();
   const categories = useCategories();
