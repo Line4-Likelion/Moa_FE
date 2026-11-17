@@ -240,7 +240,8 @@ function buildReminders(captures: Capture[]): TodayReminder[] {
   const deadline = todo
     .filter((c) => {
       const left = daysLeftOf(c);
-      return left !== null && left <= 7;
+      // 마감 7일 이내 + 지난 지 7일 이내만 (오래전에 지난 건 실천함 '마감 지남'에서 처리)
+      return left !== null && left <= 7 && left >= -7;
     })
     .sort((a, b) => (daysLeftOf(a) ?? 0) - (daysLeftOf(b) ?? 0))
     .map<TodayReminder>((c) => ({ capture_id: c.id, title: c.title ?? '제목 없음', reason: 'DEADLINE', deadline: c.deadline.date }));

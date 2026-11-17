@@ -7,7 +7,7 @@ import { colors, fonts } from '../theme';
 const TABS: Record<string, { label: string; Icon: LucideIcon }> = {
   Home: { label: '홈', Icon: House },
   Practice: { label: '실천함', Icon: LayoutGrid },
-  Archive: { label: '보관함', Icon: Archive },
+  Archive: { label: '참고함', Icon: Archive },
   My: { label: '마이', Icon: UserRound },
 };
 
@@ -37,7 +37,7 @@ export function TabBar({ state, navigation, descriptors }: BottomTabBarProps) {
               style={styles.item}
             >
               <tab.Icon size={21} color={color} strokeWidth={1.5} />
-              <Text style={[styles.label, { color, fontFamily: focused ? fonts.bold : fonts.regular }]}>
+              <Text style={[styles.label, { color, includeFontPadding: false, fontFamily: focused ? fonts.bold : fonts.regular }]}>
                 {tab.label}
               </Text>
             </Pressable>

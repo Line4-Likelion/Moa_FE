@@ -122,7 +122,7 @@ export function OriginalViewScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#efede7' },
   header: { height: 52, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  headerTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: colors.text },
   close: { position: 'absolute', right: 8, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   image: {
     backgroundColor: colors.surface,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: '#f3f2ee',
   },
-  missingText: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub, textAlign: 'center' },
+  missingText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub, textAlign: 'center' },
   box: { position: 'absolute', borderRadius: 4, borderWidth: 2 },
   boxOn: { borderColor: '#d98b2b', backgroundColor: 'rgba(217,139,43,0.18)' },
   boxOff: { borderColor: 'rgba(40,90,67,0.35)', backgroundColor: 'rgba(40,90,67,0.06)', borderStyle: 'dashed' },
@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontFamily: fonts.medium, fontSize: 13, color: '#3b443e' },
-  chipTextOn: { fontFamily: fonts.bold, color: '#fff' },
+  chipText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: '#3b443e' },
+  chipTextOn: { includeFontPadding: false, fontFamily: fonts.bold, color: '#fff' },
   card: { backgroundColor: colors.tint, borderRadius: radius.card, padding: 14, gap: 4 },
-  cardTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.primary },
-  cardDesc: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: '#4f5a52' },
+  cardTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.primary },
+  cardDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: '#4f5a52' },
 });

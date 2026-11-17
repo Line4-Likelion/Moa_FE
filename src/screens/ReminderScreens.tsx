@@ -6,6 +6,7 @@ import { Screen } from '../components/Screen';
 import { Card, FormField, Lines, OptionRow, SettingItem, StatusChip } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { errorMessage } from '../services/api';
+import { requestLocationAccess, stopGeofences, syncGeofences, useLocationAccess } from '../services/location';
 import { DEFAULT_ALARM_SETTINGS, loadAccount, saveAlarmSettings, useAccount } from '../store/account';
 import { isValidTime, saveQuietHours, useQuietHours } from '../store/quietHours';
 import { colors, fonts } from '../theme';
@@ -29,6 +30,10 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
   const [start, setStart] = useState(quiet.start);
   const [end, setEnd] = useState(quiet.end);
   const [saving, setSaving] = useState(false);
+  // 위치 기반 알림: 마이 화면과 같은 기준 (서버 설정 + 기기 위치 권한 '항상 허용')
+  const { access, refresh: refreshAccess } = useLocationAccess();
+  const hasAccess = access === 'granted';
+  const [loc, setLoc] = useState(settings.locationAlarmEnabled);
 
   // 서버 값이 늦게 도착하면 화면 값도 맞춰요
   useEffect(() => {
@@ -38,8 +43,24 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
     if (account.settings) {
       setHours(account.settings.intervalHours);
       setDnd(account.settings.dnd);
+      setLoc(account.settings.locationAlarmEnabled);
     }
   }, [account.settings]);
+
+  const locOn = loc && hasAccess;
+
+  // 켤 때 권한이 없으면 먼저 요청하고, 그래도 안 되면 권한 안내 화면으로 보내요 (저장은 [저장] 버튼에서)
+  const toggleLocation = async (value: boolean) => {
+    if (value && !hasAccess) {
+      const result = await requestLocationAccess();
+      refreshAccess();
+      if (result !== 'granted') {
+        navigation.navigate('LocationPermission');
+        return;
+      }
+    }
+    setLoc(value);
+  };
 
   const next = `${hours}시간 뒤 · 방해금지 ${dnd ? '켜짐' : '꺼짐'}`;
 
@@ -52,7 +73,12 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
     setSaving(true);
     try {
       if (dnd) await saveQuietHours({ start, end });
-      await saveAlarmSettings({ ...settings, intervalHours: hours, dnd });
+      await saveAlarmSettings({ ...settings, intervalHours: hours, dnd, locationAlarmEnabled: locOn });
+      // 위치 알림을 바꿨으면 기기의 장소 등록도 맞춰요
+      if (locOn !== (settings.locationAlarmEnabled && hasAccess)) {
+        if (locOn) await syncGeofences(true);
+        else await stopGeofences();
+      }
       navigation.navigate('Tabs', { screen: 'My', params: { variant: 'saved' } });
     } catch (error) {
       Alert.alert('설정을 저장하지 못했어요', errorMessage(error));
@@ -120,10 +146,19 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
       <Card>
         <SettingItem
           label="위치 기반 알림"
-          value={false}
-          disabled
-          description="위치 권한 없음 · 현재 꺼짐"
-          warning="권한 없음 · 사용 불가"
+          value={locOn}
+          onValueChange={toggleLocation}
+          disabled={!hasAccess}
+          onDisabledPress={() => void toggleLocation(true)}
+          description={hasAccess ? '저장한 장소 근처에 가면 알려드려요.' : '위치 권한을 허용해야 켤 수 있어요.'}
+          status={hasAccess ? (locOn ? '켜짐' : '꺼짐') : undefined}
+          warning={
+            hasAccess
+              ? undefined
+              : access === 'foreground'
+                ? '앱 사용 중에만 허용 · 항상 허용이 필요해요'
+                : '권한 없음 · 사용 불가'
+          }
         />
       </Card>
 

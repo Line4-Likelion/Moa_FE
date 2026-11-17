@@ -50,5 +50,5 @@ const styles = StyleSheet.create({
   secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   disabled: { backgroundColor: colors.disabled, borderWidth: 0 },
   pressed: { opacity: 0.85 },
-  label: { fontFamily: fonts.bold, fontSize: 14 },
+  label: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14 },
 });

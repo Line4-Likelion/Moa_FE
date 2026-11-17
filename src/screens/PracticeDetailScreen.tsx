@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -126,7 +126,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  /* 보관함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
+  /* 참고함으로 옮겨진 경우 (알림 딥링크로 들어왔을 때도 여기로) */
   if (!capture || capture.status === 'REFERENCE') {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -135,7 +135,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           <View style={styles.goneIcon}>
             <Archive size={28} color={colors.primary} strokeWidth={1.7} />
           </View>
-          <Text style={styles.goneTitle}>{capture ? '보관함으로 옮겨진 항목이에요' : '찾을 수 없는 항목이에요'}</Text>
+          <Text style={styles.goneTitle}>{capture ? '참고함으로 옮겨진 항목이에요' : '찾을 수 없는 항목이에요'}</Text>
           <Text style={styles.goneDesc}>
             {capture ? '실천에서 제외해서 AI 분석 내용이 지워졌어요' : '이미 정리됐거나 삭제된 항목이에요'}
           </Text>
@@ -193,7 +193,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
             accessibilityLabel="원본 전체 보기"
             style={styles.thumb}
           >
-            <ImageIcon size={22} color={colors.placeholder} strokeWidth={1.5} />
+            {c.uri ? (
+              <Image source={{ uri: c.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <ImageIcon size={22} color={colors.placeholder} strokeWidth={1.5} />
+            )}
             <View style={styles.thumbBadge}>
               <Text style={styles.thumbBadgeText}>원본</Text>
             </View>
@@ -304,7 +308,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
                     accessibilityRole="button"
                     style={[styles.factsBtn, { backgroundColor: colors.tint }]}
                   >
-                    <Text style={[styles.factsBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>정보 수정</Text>
+                    <Text style={[styles.factsBtnText, { color: colors.primary, includeFontPadding: false, fontFamily: fonts.bold }]}>정보 수정</Text>
                   </Pressable>
                 )}
               </View>
@@ -536,7 +540,7 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
         onConfirm={() => {
           setExcludeOpen(false);
           const save = () => {
-            if (excludePractices([c.id])) show('보관함으로 옮겼어요', true);
+            if (excludePractices([c.id])) show('참고함으로 옮겼어요', true);
             else failed(save);
           };
           save();
@@ -646,7 +650,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   header: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
   headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  headerTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 16, color: colors.text },
 
   hero: { flexDirection: 'row', gap: 14, backgroundColor: colors.surface, borderRadius: radius.card, padding: 14 },
   thumb: {
@@ -656,6 +660,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e4e2dc',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   thumbBadge: {
     position: 'absolute',
@@ -666,28 +671,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
-  thumbBadgeText: { fontFamily: fonts.medium, fontSize: 10, color: '#fff' },
+  thumbBadgeText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 10, color: '#fff' },
   catTag: { alignSelf: 'flex-start', backgroundColor: '#eef3ec', borderRadius: radius.chip, paddingHorizontal: 7, paddingVertical: 2 },
-  catTagText: { fontFamily: fonts.medium, fontSize: 11, color: '#4e6b57' },
-  title: { fontFamily: fonts.bold, fontSize: 20, lineHeight: 27, letterSpacing: -0.4, color: colors.text },
-  summary: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, color: '#5f665e' },
-  dueText: { fontFamily: fonts.bold, fontSize: 13, marginTop: 'auto' },
+  catTagText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 11, color: '#4e6b57' },
+  title: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 20, lineHeight: 27, letterSpacing: -0.4, color: colors.text },
+  summary: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, color: '#5f665e' },
+  dueText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, marginTop: 'auto' },
 
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  bannerText: { flex: 1, fontFamily: fonts.medium, fontSize: 13 },
+  bannerText: { flex: 1, includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13 },
   bannerBtn: { paddingHorizontal: 4 },
-  bannerBtnText: { fontFamily: fonts.bold, fontSize: 13, textDecorationLine: 'underline' },
+  bannerBtnText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, textDecorationLine: 'underline' },
   alarm: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
-  alarmText: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  alarmText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
 
   section: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 16, gap: 10 },
-  sectionTitleInline: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  sectionTitleInline: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
   warnBadge: { backgroundColor: colors.warnBg, borderRadius: radius.chip, paddingHorizontal: 6, paddingVertical: 2 },
-  warnBadgeText: { fontFamily: fonts.bold, fontSize: 11, color: colors.warn },
-  factsSummary: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
+  warnBadgeText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 11, color: colors.warn },
+  factsSummary: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
   factsActions: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: '#f1f0ec', paddingTop: 12, marginTop: 2 },
   factsBtn: { flex: 1, height: 40, borderRadius: radius.input, alignItems: 'center', justifyContent: 'center' },
-  factsBtnText: { fontFamily: fonts.medium, fontSize: 13 },
+  factsBtnText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13 },
   excludeBtn: {
     flex: 1,
     height: 50,
@@ -699,11 +704,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
-  excludeBtnText: { fontFamily: fonts.bold, fontSize: 14, color: colors.error },
+  excludeBtnText: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.error },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { flex: 1, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
-  sectionRight: { fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
-  sectionAction: { fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
+  sectionTitle: { flex: 1, includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  sectionRight: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
+  sectionAction: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
 
   progressTrack: { height: 4, borderRadius: 2, backgroundColor: '#eceae4', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2, backgroundColor: colors.primary },
@@ -718,12 +723,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkBoxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  checkText: { flex: 1, fontFamily: fonts.medium, fontSize: 15, color: colors.text },
+  checkText: { flex: 1, includeFontPadding: false, fontFamily: fonts.medium, fontSize: 15, color: colors.text },
   checkTextDone: { color: colors.textSub, textDecorationLine: 'line-through' },
 
   noGuide: { alignItems: 'center', gap: 4, paddingVertical: 10 },
-  noGuideTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
-  noGuideDesc: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSub, textAlign: 'center' },
+  noGuideTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14, color: colors.text },
+  noGuideDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub, textAlign: 'center' },
 
   guideLine: { flexDirection: 'row', gap: 10 },
   guideNum: {
@@ -733,16 +738,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tint,
     textAlign: 'center',
     lineHeight: 20,
-    fontFamily: fonts.bold,
+    includeFontPadding: false, fontFamily: fonts.bold,
     fontSize: 11,
     color: colors.primary,
     overflow: 'hidden',
   },
-  guideText: { flex: 1, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, color: '#3b443e' },
-  subLabel: { fontFamily: fonts.bold, fontSize: 12, color: colors.textSub },
+  guideText: { flex: 1, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, color: '#3b443e' },
+  subLabel: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 12, color: colors.textSub },
   prepRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   prepChip: { backgroundColor: '#f3f2ee', borderRadius: radius.chip, paddingHorizontal: 9, paddingVertical: 4 },
-  prepText: { fontFamily: fonts.regular, fontSize: 12, color: '#3b443e' },
+  prepText: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: '#3b443e' },
   linkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -754,13 +759,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginTop: 4,
   },
-  linkText: { fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
+  linkText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.primary },
 
   factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 6 },
-  factLabel: { width: 64, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, paddingTop: 1 },
-  factValue: { fontFamily: fonts.medium, fontSize: 14, color: colors.text },
-  factEdited: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
-  factSource: { fontFamily: fonts.medium, fontSize: 12, color: colors.primary, paddingTop: 1 },
+  factLabel: { width: 64, includeFontPadding: false, fontFamily: fonts.regular, fontSize: 13, color: colors.textSub, paddingTop: 1 },
+  factValue: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 14, color: colors.text },
+  factEdited: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 11, color: colors.textSub },
+  factSource: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 12, color: colors.primary, paddingTop: 1 },
   originalLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -770,7 +775,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginTop: 2,
   },
-  originalLinkText: { fontFamily: fonts.medium, fontSize: 13, color: colors.text },
+  originalLinkText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, color: colors.text },
 
   bottom: {
     flexDirection: 'row',
@@ -795,7 +800,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   menuRow: { height: 52, justifyContent: 'center', paddingHorizontal: 12 },
-  menuText: { fontFamily: fonts.medium, fontSize: 16, color: colors.text },
+  menuText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 16, color: colors.text },
 
   gone: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 8, paddingBottom: 80 },
   goneIcon: {
@@ -807,6 +812,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  goneTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.text, textAlign: 'center' },
-  goneDesc: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSub, textAlign: 'center' },
+  goneTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 18, color: colors.text, textAlign: 'center' },
+  goneDesc: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 14, color: colors.textSub, textAlign: 'center' },
 });

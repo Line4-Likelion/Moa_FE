@@ -372,6 +372,8 @@ export function useCapture(id: string) {
   // 서버 모드: 상세는 화면을 열 때 한 번 받아와요
   useEffect(() => {
     if (USE_SERVER && id) void ensureDetail(id);
+    // 사진 주소가 비어 있으면 다시 찾아요 (처음 열 때 실패했던 경우)
+    fillMissingUris();
   }, [id]);
   return capture;
 }
@@ -398,6 +400,8 @@ export function useCategories() {
 export type Practice = {
   id: string;
   title: string;
+  /** 기기 사진 주소 (있으면 썸네일로) */
+  uri?: string;
   category: string;
   /** 확정된 마감일 (FOUND 일 때만) */
   deadline: string | null;
@@ -423,6 +427,7 @@ function toPractice(c: Capture): Practice {
   return {
     id: c.id,
     title: c.title ?? '제목 없음',
+    uri: c.uri,
     category: c.category?.name ?? ETC.name,
     deadline: c.deadline.status === 'FOUND' ? c.deadline.date : null,
     deadlineUnclear: c.deadline.status === 'UNCLEAR',
@@ -501,7 +506,7 @@ export function resumeCaptures(ids: string[]) {
   patch(ids, (c) => ({ ...c, snooze_until: null }));
 }
 
-/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 보관함(참고)으로 옮겨요 */
+/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 참고함(참고)으로 옮겨요 */
 export function excludePractices(ids: string[]) {
   if (saveFails()) return false;
   if (USE_SERVER) serverAction(ids, 'DISMISS', {}, true);
@@ -949,28 +954,43 @@ const uriCache = new Map<string, string | null>();
 async function resolveUri(fileKey: string): Promise<string | null> {
   if (Platform.OS === 'web' || !MediaLibrary) return null;
   if (uriCache.has(fileKey)) return uriCache.get(fileKey) ?? null;
+  // 안드로이드: 사진 ID(숫자)로 주소를 바로 만들어요.
+  // getAssetInfoAsync 는 사진 위치(EXIF)까지 읽으려다 ACCESS_MEDIA_LOCATION 권한이 없으면 실패해서 쓰지 않아요
+  if (Platform.OS === 'android' && /^\d+$/.test(fileKey)) {
+    const uri = `content://media/external/images/media/${fileKey}`;
+    uriCache.set(fileKey, uri);
+    return uri;
+  }
   try {
     const info = await MediaLibrary.getAssetInfoAsync(fileKey);
     const uri = info?.localUri ?? info?.uri ?? null;
-    uriCache.set(fileKey, uri);
+    // 찾은 주소만 기억해요. 실패(권한 받기 전 등)는 기억하지 않아서 다음에 다시 찾아요
+    if (uri) uriCache.set(fileKey, uri);
     return uri;
-  } catch {
-    uriCache.set(fileKey, null);
+  } catch (error) {
+    console.warn('[moa] 기기 사진 주소를 찾지 못했어요', fileKey, error);
     return null;
   }
 }
+/** 화면에 바로 못 그리는 주소 (없음, 아이폰 ph://) */
+const needsUri = (uri?: string) => !uri || uri.startsWith('ph://');
 let resolving = false;
 async function fillUris() {
   if (resolving) return;
   resolving = true;
   try {
-    for (const c of state.captures.filter((x) => !x.uri)) {
+    for (const c of state.captures.filter((x) => needsUri(x.uri))) {
       const uri = await resolveUri(c.file_key);
       if (uri) patch([c.id], (x) => ({ ...x, uri }));
     }
   } finally {
     resolving = false;
   }
+}
+
+/** 사진이 비어 있는 항목의 주소를 다시 찾아요. 실천함·홈 화면에 들어올 때 불러요 */
+export function fillMissingUris() {
+  if (state.captures.some((c) => needsUri(c.uri))) void fillUris();
 }
 
 /* ───────── 불러오기 ───────── */
@@ -1018,7 +1038,7 @@ async function ensureDetail(id: string, force = false) {
     const prev = state.captures.find((c) => c.id === id);
     const next = fromServer(detail, prev);
     upsert({ ...next, detail_loaded: true });
-    if (!next.uri) {
+    if (needsUri(next.uri)) {
       const uri = await resolveUri(next.file_key);
       if (uri) patch([id], (c) => ({ ...c, uri }));
     }
