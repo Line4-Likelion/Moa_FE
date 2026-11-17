@@ -408,7 +408,7 @@ function ActivityCard({ activity }: { activity: ReturnType<typeof useHomeData>['
       </View>
 
       <View style={styles.legend}>
-        <Text style={styles.legendText}>1개</Text>
+        <Text style={styles.legendText}>0개</Text>
         {LEVEL_COLORS.map((c) => (
           <View key={c} style={[styles.legendCell, { backgroundColor: c }]} />
         ))}
