@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Archive, CircleCheck } from 'lucide-react-native';
@@ -7,7 +7,8 @@ import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { EmptyState } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
-import { ETC_CATEGORY, useCaptures, useCategories } from '../store/practices';
+import { errorMessage } from '../services/api';
+import { ETC_CATEGORY, deleteReferences, referencesToPractice, useCaptures, useCategories } from '../store/practices';
 import { referenceLabel } from './ReferenceDetailScreen';
 import { colors, fonts } from '../theme';
 
@@ -21,6 +22,7 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
   const [filter, setFilter] = useState('all');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState<'practice' | 'delete' | null>(null);
   // 참고함 = 서버의 REFERENCE 항목 (사진 주소는 기기에서 file_key 로 찾아와요)
   const items = captures.filter((c) => c.status === 'REFERENCE');
   const isEmpty = route.params?.empty || items.length === 0;
@@ -37,6 +39,26 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
   ];
   const visible = filter === 'all' ? items : items.filter((c) => nameOf(c) === filter);
   const cardWidth = (width - 40 - GAP * 2) / 3;
+
+  // 선택 모드에서는 하단 탭바 대신 선택 버튼을 보여줘요 (실천함과 같은 방식)
+  useEffect(() => {
+    navigation.setOptions({ tabBarStyle: selectMode ? { display: 'none' } : undefined });
+  }, [navigation, selectMode]);
+  // 다른 탭으로 나가거나, 항목이 모두 사라지면 선택 모드를 해제해요
+  useEffect(
+    () =>
+      navigation.addListener('blur', () => {
+        setSelectMode(false);
+        setSelected([]);
+      }),
+    [navigation],
+  );
+  useEffect(() => {
+    if (items.length === 0) {
+      setSelectMode(false);
+      setSelected([]);
+    }
+  }, [items.length]);
 
   if (isEmpty) {
     return (
@@ -64,17 +86,81 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
     navigation.navigate('CategoryChange', { label, ids: picked.map((i) => i.id) });
   };
 
+  // 선택한 사진을 실천으로 바꾸기: 한 장마다 AI 분석이 시작되니 먼저 확인받아요
+  const runPractice = () => {
+    const ids = selected;
+    Alert.alert(`${ids.length}장을 실천으로 바꿀까요?`, 'AI가 사진을 분석하고, 진행 상황은 실천함에서 볼 수 있어요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '바꾸기',
+        onPress: async () => {
+          setBusy('practice');
+          try {
+            const result = await referencesToPractice(ids);
+            if (result.failed.length) {
+              setSelected(result.failed);
+              Alert.alert(
+                `${result.ok.length}장을 옮겼어요`,
+                `${result.failed.length}장은 옮기지 못했어요. 선택된 채로 두었으니 다시 시도해 주세요.\n${errorMessage(result.error)}`,
+              );
+            } else cancelSelect();
+          } finally {
+            setBusy(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  // 선택한 사진을 기기에서 삭제: 시스템 팝업에서 허용하면 서버 기록도 지워요. 거부하면 아무 일도 없어요
+  const runDelete = async () => {
+    setBusy('delete');
+    try {
+      const result = await deleteReferences(selected);
+      if (result.status === 'cancelled') return;
+      if (result.failed.length) {
+        setSelected(result.failed);
+        Alert.alert(
+          `${result.deleted.length}장을 삭제했어요`,
+          `${result.failed.length}장은 서버 기록을 지우지 못했어요. 선택된 채로 두었으니 다시 눌러 주세요.\n${errorMessage(result.error)}`,
+        );
+      } else cancelSelect();
+    } catch (error) {
+      Alert.alert('사진을 삭제하지 못했어요', errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <Screen
       title="참고함"
-      hasTabBar
+      hasTabBar={!selectMode}
       footer={
         selectMode ? (
-          <Button
-            label={selected.length ? `카테고리 변경 (${selected.length})` : '카테고리를 바꿀 사진을 선택해 주세요'}
-            disabled={selected.length === 0}
-            onPress={goChange}
-          />
+          <View style={{ gap: 8 }}>
+            <Button
+              label={selected.length ? `카테고리 변경 (${selected.length})` : '바꿀 사진을 선택해 주세요'}
+              variant="secondary"
+              disabled={selected.length === 0 || !!busy}
+              onPress={goChange}
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button
+                label={busy === 'delete' ? '삭제 중...' : selected.length ? `삭제 (${selected.length})` : '삭제'}
+                variant="danger"
+                disabled={selected.length === 0 || !!busy}
+                onPress={runDelete}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label={busy === 'practice' ? '옮기는 중...' : '실천으로 바꾸기'}
+                disabled={selected.length === 0 || !!busy}
+                onPress={runPractice}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
         ) : undefined
       }
       header={
