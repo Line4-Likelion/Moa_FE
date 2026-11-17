@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   Animated,
@@ -249,8 +249,35 @@ export function SortScreen() {
     }
   };
 
+  /** X 버튼이나 팝업을 거쳐 나가는 중이면 true (뒤로가기 가로채기를 건너뛰어요) */
+  const leaving = useRef(false);
+  // 안드로이드 뒤로가기 버튼·제스처는 X 를 거치지 않아서, 화면을 떠나기 직전에 가로채요
+  const latest = useRef({ deleteState, decisions });
+  latest.current = { deleteState, decisions };
+  useEffect(
+    () =>
+      nav.addListener('beforeRemove', (e) => {
+        if (leaving.current) return;
+        const { deleteState: del, decisions: ds } = latest.current;
+        const pending = pendingIds(del);
+        if (!pending.length) {
+          commitClassified(ds);
+          return;
+        }
+        e.preventDefault();
+        askDelete(pending, () => {
+          commitClassified(ds);
+          leaving.current = true;
+          nav.dispatch(e.data.action);
+        });
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nav],
+  );
+
   const close = () => {
     const leave = () => {
+      leaving.current = true;
       commitClassified();
       // 처음 세팅 중에 닫으면 뒤로 갈 화면이 없어서, 지금까지 나눈 걸로 첫 결과 화면을 보여줘요
       if (route.params?.onboarding) {

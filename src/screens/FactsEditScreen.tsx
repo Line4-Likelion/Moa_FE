@@ -34,6 +34,9 @@ export function FactsEditScreen({ navigation, route }: Props) {
   }
 
   const deadlineChanged = deadline !== (capture.deadline.date ?? null);
+  // 서버 facts 에도 deadline 이 들어 있어요. 마감은 위 달력 칸으로만 고치고, 글자 칸 목록에서는 빼요
+  const deadlineEdited = !!capture.facts.find((f) => f.key === 'deadline')?.edited;
+  const otherFacts = capture.facts.filter((f) => f.key !== 'deadline');
   const changedFacts = Object.fromEntries(
     Object.entries(values).filter(([k, v]) => v !== (capture.facts.find((f) => f.key === k)?.value ?? '')),
   );
@@ -77,9 +80,22 @@ export function FactsEditScreen({ navigation, route }: Props) {
           <CalendarDays size={18} color={colors.textSub} strokeWidth={1.8} />
         </Pressable>
         <Text style={styles.hint}>마감을 바꾸면 알림 날짜도 다시 정해져요</Text>
+        {deadlineEdited && (
+          <Pressable
+            onPress={() => {
+              if (revertFact(capture.id, 'deadline')) navigation.goBack();
+              else setSaveError('되돌리지 못했어요. 다시 시도해주세요.');
+            }}
+            accessibilityRole="button"
+            hitSlop={6}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <Text style={styles.revert}>직접 고친 마감이에요 · AI가 읽은 값으로 되돌리기</Text>
+          </Pressable>
+        )}
       </View>
 
-      {capture.facts.map((f) => (
+      {otherFacts.map((f) => (
         <View key={f.key} style={{ gap: 4 }}>
           <FormField
             label={f.label}

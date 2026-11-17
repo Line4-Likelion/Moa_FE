@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -130,6 +130,16 @@ export function PracticeScreen() {
 
   // 다른 탭으로 나가면 선택 모드 해제
   useEffect(() => nav.addListener('blur', () => exitSelect()), [nav]);
+
+  // 안드로이드 뒤로가기: 선택 모드면 홈으로 가지 말고 선택만 풀어요
+  useEffect(() => {
+    if (!selecting) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      exitSelect();
+      return true;
+    });
+    return () => sub.remove();
+  }, [selecting]);
 
   const exitSelect = () => {
     setSelecting(false);

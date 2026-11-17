@@ -35,6 +35,8 @@ export function OriginalViewScreen({ navigation, route }: Props) {
     });
   }
   capture?.facts.forEach((f) => {
+    // 마감은 위에서 이미 넣었어요 (같은 key 중복 방지)
+    if (f.key === 'deadline') return;
     if (f.box) evidence.push({ key: f.key, label: f.label, value: f.value ?? '직접 확인 필요', box: f.box });
   });
 

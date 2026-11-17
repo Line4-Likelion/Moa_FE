@@ -598,7 +598,9 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
   if (saveFails()) return false;
   if (USE_SERVER) {
     const facts = Object.entries(values).map(([key, value]) => ({ key, value: value.trim() || null }));
-    if (deadline !== undefined) facts.push({ key: 'deadline', value: deadline });
+    // 서버는 value: null 을 'AI 값으로 되돌리기'로 받아요. 그래서 '마감 없음'은 빈 문자열로 보내요
+    // TODO(백엔드 확인): 빈 문자열("")을 '마감 없음'으로 처리하는지
+    if (deadline !== undefined) facts.push({ key: 'deadline', value: deadline ?? '' });
     if (facts.length) {
       api
         .patchFacts(id, facts)
@@ -611,7 +613,9 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
   }
   patch([id], (c) => {
     const facts = c.facts.map((f) =>
-      f.key in values ? { ...f, value: values[f.key].trim() || null, edited: true } : f,
+      f.key in values || (f.key === 'deadline' && deadline !== undefined)
+        ? { ...f, value: f.key === 'deadline' ? (deadline ?? null) : values[f.key].trim() || null, edited: true }
+        : f,
     );
     let nextDeadline = c.deadline;
     if (deadline !== undefined) {
@@ -1307,15 +1311,29 @@ export async function deleteReferences(ids: string[]): Promise<DeleteResult> {
 
   if (!MediaLibrary) throw new Error('이 앱 빌드에서는 사진 삭제를 쓸 수 없어요.');
   // 이미 기기에서 지워진 사진이면(예전에 지우고 서버 삭제만 실패한 경우) 팝업 대상에서 빼고 서버 기록만 지워요
+  // 안드로이드는 getAssetInfoAsync 가 위치 권한(ACCESS_MEDIA_LOCATION) 없이 항상 실패해서
+  // "이미 지워진 사진"으로 착각하고 팝업 없이 지워버렸어요. 안드로이드는 확인 없이 바로 시스템 팝업을 띄워요
   const onDevice: string[] = [];
-  for (const t of targets) {
-    const exists = await MediaLibrary.getAssetInfoAsync(t.file_key)
-      .then((info) => !!info)
-      .catch(() => false);
-    if (exists) onDevice.push(t.file_key);
+  if (Platform.OS === 'android') {
+    onDevice.push(...targets.map((t) => t.file_key));
+  } else {
+    for (const t of targets) {
+      const exists = await MediaLibrary.getAssetInfoAsync(t.file_key)
+        .then((info) => !!info)
+        .catch(() => false);
+      if (exists) onDevice.push(t.file_key);
+    }
   }
-  if (onDevice.length && !(await MediaLibrary.deleteAssetsAsync(onDevice))) {
-    return { status: 'cancelled', deleted: [], failed: [] };
+  if (onDevice.length) {
+    let allowed: boolean;
+    try {
+      allowed = await MediaLibrary.deleteAssetsAsync(onDevice);
+    } catch (error) {
+      // 기기에서 이미 지워진 사진이면 팝업 없이 실패해요 → 서버 기록만 지워요
+      console.warn('[moa] 기기 사진 삭제 실패 (이미 지워졌을 수 있어요)', error);
+      allowed = true;
+    }
+    if (!allowed) return { status: 'cancelled', deleted: [], failed: [] };
   }
 
   const results = await Promise.allSettled(targets.map((t) => api.deleteCapture(t.id)));
