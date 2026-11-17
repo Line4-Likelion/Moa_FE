@@ -58,13 +58,16 @@ export type Capture = {
   detail_loaded?: boolean;
 };
 
-/** 분석 단계 (GET /analysis-jobs 의 step) */
-export type AnalysisStep = 'OCR' | 'DEADLINE' | 'CATEGORIZE' | 'GUIDE';
+/**
+ * 분석 단계 (서버 GET /analysis-jobs 의 step: OCR → CATEGORIZE → DONE)
+ * DONE 은 앱에서 GUIDE(마무리)로 보여줘요
+ */
+export type AnalysisStep = 'OCR' | 'CATEGORIZE' | 'GUIDE';
+export const ANALYSIS_STEPS: AnalysisStep[] = ['OCR', 'CATEGORIZE', 'GUIDE'];
 export const ANALYSIS_STEP_LABEL: Record<AnalysisStep, string> = {
   OCR: '원문 정보 확인',
-  DEADLINE: '마감기한 판단',
-  CATEGORIZE: '카테고리 정리',
-  GUIDE: '실천 가이드 만들기',
+  CATEGORIZE: '카테고리·실천 방법 정리',
+  GUIDE: '마무리',
 };
 
 /* ═════════ 카테고리 ═════════ */
@@ -274,7 +277,7 @@ const SEED: Capture[] = [
     id: 'cap_analyzing',
     title: null,
     status: 'ANALYZING',
-    job_step: 'DEADLINE',
+    job_step: 'CATEGORIZE',
     created_at: isoDaysAgo(0),
   }),
   capture({
@@ -686,7 +689,7 @@ export function reanalyze(id: string, fail = false) {
     if (c) void startAnalysis(id, c.file_key, c.uri);
     return;
   }
-  const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
+  const steps: AnalysisStep[] = ANALYSIS_STEPS;
   patch([id], (c) => ({ ...c, status: 'ANALYZING', error: null, job_step: 'OCR' }));
   steps.forEach((step, i) => {
     setTimeout(() => patch([id], (c) => ({ ...c, job_step: step })), i * 800);
@@ -847,7 +850,7 @@ export function changeSort(captureId: string, sort: 'ACT' | 'REF' | 'NONE') {
 
 /** 목업 분석: 단계를 넘기다가 예시 결과를 채워요 */
 function runMockAnalysis(id: string) {
-  const steps: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
+  const steps: AnalysisStep[] = ANALYSIS_STEPS;
   steps.forEach((step, i) => setTimeout(() => patch([id], (c) => (c.status === 'ANALYZING' ? { ...c, job_step: step } : c)), i * 900));
   setTimeout(() => {
     const r = MOCK_RESULTS[mockResultIndex++ % MOCK_RESULTS.length];

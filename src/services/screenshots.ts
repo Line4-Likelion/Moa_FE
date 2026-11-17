@@ -23,7 +23,12 @@ export async function loadUnsortedScreenshots(): Promise<Screenshot[]> {
       ...(Platform.OS === 'ios' ? { mediaSubtypes: ['screenshot' as const] } : { album }),
     });
     for (const asset of page.assets) {
-      if (!sorted.has(asset.id)) screenshots.push({ id: asset.id, uri: asset.uri, capturedAt: new Date(asset.creationTime).toLocaleDateString() });
+      if (!sorted.has(asset.id)) screenshots.push({
+        id: asset.id,
+        uri: asset.uri,
+        capturedAt: new Date(asset.creationTime).toLocaleDateString(),
+        takenAt: asset.creationTime,
+      });
     }
     after = page.hasNextPage ? page.endCursor : undefined;
   } while (after);
