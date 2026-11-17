@@ -8,6 +8,7 @@ import { Screen } from '../components/Screen';
 import { EmptyState } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
 import { ETC_CATEGORY, useCaptures, useCategories } from '../store/practices';
+import { referenceLabel } from './ReferenceDetailScreen';
 import { colors, fonts } from '../theme';
 
 const GAP = 12;
@@ -24,9 +25,15 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
   const items = captures.filter((c) => c.status === 'REFERENCE');
   const isEmpty = route.params?.empty || items.length === 0;
   const nameOf = (c: (typeof items)[number]) => c.category?.name ?? ETC_CATEGORY;
+  // 칩 순서: 전체 → 미분류(서버의 '기타') → 나머지 카테고리
+  const orderedNames = [ETC_CATEGORY, ...categoryNames.filter((name) => name !== ETC_CATEGORY)];
   const filters = [
     { id: 'all', label: '전체', count: items.length },
-    ...categoryNames.map((name) => ({ id: name, label: name, count: items.filter((c) => nameOf(c) === name).length })),
+    ...orderedNames.map((name) => ({
+      id: name,
+      label: referenceLabel(name),
+      count: items.filter((c) => nameOf(c) === name).length,
+    })),
   ];
   const visible = filter === 'all' ? items : items.filter((c) => nameOf(c) === filter);
   const cardWidth = (width - 40 - GAP * 2) / 3;
@@ -124,7 +131,7 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
             key={item.id}
             accessibilityLabel={item.title ?? '참고 사진'}
             accessibilityState={{ selected: isSelected }}
-            onPress={selectMode ? () => toggle(item.id) : undefined}
+            onPress={selectMode ? () => toggle(item.id) : () => navigation.navigate('ReferenceDetail', { id: item.id })}
             onLongPress={selectMode ? undefined : () => startSelect(item.id)}
             style={[styles.thumb, { width: cardWidth }, isSelected && styles.thumbSelected]}
           >

@@ -27,6 +27,8 @@ export type RootStackParamList = {
   PracticeDetail: { id: string };
   /** 원본 전체 보기. focus: 처음에 강조할 정보 key (deadline, place …) */
   OriginalView: { id: string; focus?: string };
+  /** 참고함 상세 (사진 확대 · 실천으로 바꾸기 · 삭제) */
+  ReferenceDetail: { id: string };
   /** 추출 정보 수정 */
   FactsEdit: { id: string };
   /** 스와이프 분류 */

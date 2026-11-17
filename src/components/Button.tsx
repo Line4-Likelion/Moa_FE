@@ -4,7 +4,7 @@ import { colors, fonts, radius } from '../theme';
 type Props = {
   label: string;
   onPress?: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };
@@ -19,7 +19,7 @@ export function Button({ label, onPress, variant = 'primary', disabled, style }:
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.secondary,
+        isPrimary ? styles.primary : variant === 'danger' ? styles.danger : styles.secondary,
         disabled && styles.disabled,
         pressed && !disabled && styles.pressed,
         style,
@@ -28,7 +28,7 @@ export function Button({ label, onPress, variant = 'primary', disabled, style }:
       <Text
         style={[
           styles.label,
-          { color: disabled ? colors.textSub : isPrimary ? '#fff' : colors.text },
+          { color: disabled ? colors.textSub : isPrimary ? '#fff' : variant === 'danger' ? colors.error : colors.text },
         ]}
       >
         {label}
@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: colors.primary },
   secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  danger: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   disabled: { backgroundColor: colors.disabled, borderWidth: 0 },
   pressed: { opacity: 0.85 },
   label: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 14 },

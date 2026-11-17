@@ -6,7 +6,8 @@ import { Screen } from '../components/Screen';
 import { FormField, Lines, OptionRow } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { errorMessage } from '../services/api';
-import { addCategory, changeCategory, useCapture, useCategories } from '../store/practices';
+import { ETC_CATEGORY, addCategory, changeCategory, useCapture, useCategories } from '../store/practices';
+import { referenceLabel } from './ReferenceDetailScreen';
 import { colors, fonts } from '../theme';
 
 function Actions({
@@ -102,9 +103,16 @@ export function CategoryChangeScreen({
       }
     >
       <Text style={styles.prompt}>{`${route.params.label}\n어디에 모아둘까요?`}</Text>
-      {categories.map((label) => (
-        <OptionRow key={label} label={label} selected={selected === label} onPress={() => setSelected(label)} />
-      ))}
+      {[ETC_CATEGORY, ...categories.filter((name) => name !== ETC_CATEGORY)]
+        .filter((name) => categories.includes(name))
+        .map((name) => (
+          <OptionRow
+            key={name}
+            label={referenceLabel(name)}
+            selected={selected === name}
+            onPress={() => setSelected(name)}
+          />
+        ))}
       <OptionRow label="+ 새 카테고리" selected={false} onPress={() => navigation.navigate('CategoryAdd')} />
     </Screen>
   );

@@ -1236,3 +1236,35 @@ export async function startAnalysis(captureId: string | number, fileKey: string,
     analyzing.delete(id);
   }
 }
+
+/* ───────── 참고함 상세: 실천으로 바꾸기 · 삭제 ───────── */
+
+/**
+ * 참고 → 실천으로 바꾸기
+ * 서버 분류를 PRACTICE 로 바꾸고(PATCH /screenshot-classifications/{id}), 앱에서 분석을 시작해요 (changeSort 'ACT').
+ * 서버 분류 id 는 캡처 id 와 같아요. 실패하면 던져요(화면은 그대로).
+ */
+export async function referenceToPractice(id: string) {
+  if (USE_SERVER) await api.changeClassification(Number(id), 'PRACTICE');
+  changeSort(id, 'ACT');
+}
+
+/**
+ * 참고 항목 삭제: 기기에서 사진을 먼저 지우고(안드로이드 시스템 삭제 팝업),
+ * 허용했을 때만 서버 기록(DELETE /captures/{id})을 지워요. 거부하면 아무것도 하지 않고 'cancelled'.
+ */
+export async function deleteReference(id: string): Promise<'deleted' | 'cancelled'> {
+  const target = state.captures.find((c) => c.id === id);
+  if (!target) return 'cancelled';
+  if (USE_SERVER) {
+    if (!MediaLibrary) throw new Error('이 앱 빌드에서는 사진 삭제를 쓸 수 없어요.');
+    // 이미 기기에서 지워진 사진이면(예전에 지우고 서버 삭제만 실패한 경우) 팝업 없이 서버 기록만 지워요
+    const existsOnDevice = await MediaLibrary.getAssetInfoAsync(target.file_key)
+      .then((info) => !!info)
+      .catch(() => false);
+    if (existsOnDevice && !(await MediaLibrary.deleteAssetsAsync([target.file_key]))) return 'cancelled';
+    await api.deleteCapture(id);
+  }
+  dropCapture(id);
+  return 'deleted';
+}
