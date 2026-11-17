@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -502,7 +502,11 @@ function PracticeCard({
       )}
 
       <View style={[styles.thumb, faded && { opacity: 0.6 }]}>
-        <ImageIcon size={20} color={colors.placeholder} strokeWidth={1.5} />
+        {p.uri ? (
+          <Image source={{ uri: p.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <ImageIcon size={20} color={colors.placeholder} strokeWidth={1.5} />
+        )}
       </View>
 
       <View style={styles.cardBody}>
@@ -890,6 +894,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-start',
+    overflow: 'hidden',
   },
   cardBody: { flex: 1, gap: 4, alignSelf: 'stretch' },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

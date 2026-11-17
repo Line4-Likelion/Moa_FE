@@ -398,6 +398,8 @@ export function useCategories() {
 export type Practice = {
   id: string;
   title: string;
+  /** 기기 사진 주소 (있으면 썸네일로) */
+  uri?: string;
   category: string;
   /** 확정된 마감일 (FOUND 일 때만) */
   deadline: string | null;
@@ -423,6 +425,7 @@ function toPractice(c: Capture): Practice {
   return {
     id: c.id,
     title: c.title ?? '제목 없음',
+    uri: c.uri,
     category: c.category?.name ?? ETC.name,
     deadline: c.deadline.status === 'FOUND' ? c.deadline.date : null,
     deadlineUnclear: c.deadline.status === 'UNCLEAR',

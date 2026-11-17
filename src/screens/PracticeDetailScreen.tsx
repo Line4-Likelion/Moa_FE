@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -193,7 +193,11 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
             accessibilityLabel="원본 전체 보기"
             style={styles.thumb}
           >
-            <ImageIcon size={22} color={colors.placeholder} strokeWidth={1.5} />
+            {c.uri ? (
+              <Image source={{ uri: c.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <ImageIcon size={22} color={colors.placeholder} strokeWidth={1.5} />
+            )}
             <View style={styles.thumbBadge}>
               <Text style={styles.thumbBadgeText}>원본</Text>
             </View>
@@ -656,6 +660,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e4e2dc',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   thumbBadge: {
     position: 'absolute',
