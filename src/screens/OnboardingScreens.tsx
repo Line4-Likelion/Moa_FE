@@ -1,11 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Images, ListChecks, ShieldCheck } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import type { RootStackParamList } from '../navigation/types';
-import { applyOnboardingRange, finishOnboarding, MOCK_TOTAL_SCREENSHOTS, type OnboardingRange } from '../store/home';
+import { applyOnboardingRange, countAllScreenshots, finishOnboarding, type OnboardingRange } from '../store/home';
 import { colors, fonts, radius } from '../theme';
 
 type Nav<T extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, T>;
@@ -57,30 +57,40 @@ function Point({ icon, text }: { icon: ReactNode; text: string }) {
 
 /* ═════════ ② 범위 고르기 ═════════ */
 
-const RANGES: { key: OnboardingRange; label: string; desc: string; recommended?: boolean }[] = [
+const rangesFor = (total: number): { key: OnboardingRange; label: string; desc: string; recommended?: boolean }[] => [
   { key: 'RECENT_30', label: '최근 30장', desc: '가볍게 시작하기 좋아요', recommended: true },
   { key: 'LAST_MONTH', label: '최근 한 달', desc: '지난 30일 동안 찍은 스크린샷' },
-  { key: 'ALL', label: '전부', desc: `${MOCK_TOTAL_SCREENSHOTS}장 모두 차근차근` },
+  { key: 'ALL', label: '전부', desc: `${total}장 모두 차근차근` },
 ];
 
 export function OnboardingRangeScreen({ navigation }: Nav<'OnboardingRange'>) {
   const insets = useSafeAreaInsets();
   const [range, setRange] = useState<OnboardingRange>('RECENT_30');
+  /** 전체 스크린샷 장수 (서버 모드면 기기에서 세요). null 이면 세는 중 */
+  const [total, setTotal] = useState<number | null>(null);
+  const [starting, setStarting] = useState(false);
 
-  const start = () => {
+  useEffect(() => {
+    countAllScreenshots().then(setTotal);
+  }, []);
+
+  const start = async () => {
     // PUT /users/me/onboarding { range, baseline_at }
-    applyOnboardingRange(range);
+    setStarting(true);
+    await applyOnboardingRange(range);
     navigation.replace('Sort', { mode: 'new', limit: 10, onboarding: true });
   };
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.body}>
-        <Text style={styles.title}>{`스크린샷이 ${MOCK_TOTAL_SCREENSHOTS}장 있어요.\n어디부터 정리할까요?`}</Text>
+        <Text style={styles.title}>
+          {total === null ? '스크린샷을 세고 있어요' : `스크린샷이 ${total}장 있어요.\n어디부터 정리할까요?`}
+        </Text>
         <Text style={styles.desc}>고르지 않은 예전 스크린샷은 '지난 캡처'로 따로 두고,{'\n'}원할 때 정리할 수 있어요.</Text>
 
         <View style={styles.options}>
-          {RANGES.map((r) => {
+          {rangesFor(total ?? 0).map((r) => {
             const on = range === r.key;
             return (
               <Pressable
@@ -108,7 +118,7 @@ export function OnboardingRangeScreen({ navigation }: Nav<'OnboardingRange'>) {
         </View>
       </View>
 
-      <Button label="첫 10장 나누기" onPress={start} />
+      <Button label={starting ? '준비하고 있어요...' : '첫 10장 나누기'} onPress={start} disabled={total === null || starting} />
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { UNSORTED_SCREENSHOTS, type Screenshot } from '../mock/screenshots';
 import { USE_SERVER } from '../services/config';
 import { loadUnsortedScreenshots } from '../services/screenshots';
+import { AsyncStorage } from '../services/native';
 import { daysLeftOf, dayKey, isSnoozed, parseDay, useCaptures, type Capture } from './practices';
 
 /* ═════════ 새 캡처 안내 카드 (명세서: 앱이 계산, 서버 API 없음) ═════════
@@ -59,13 +60,51 @@ export function useNewCaptures() {
   };
 }
 
+/* ───────── 새 캡처 / 지난 캡처 기준 시각 (명세서 baseline_at) ─────────
+ * 서버에 저장 API가 없어서 기기에 저장해요. 처음 세팅에서 고른 범위로 정해지고,
+ * 이 시각 이후에 찍은 스크린샷만 '새 캡처', 그 전 것은 '지난 캡처'예요.
+ */
+const BASELINE_KEY = 'moa.baselineAt';
+let baselineCache: number | null | undefined;
+let lastLoaded: Screenshot[] = [];
+
+async function getBaseline(): Promise<number | null> {
+  if (baselineCache !== undefined) return baselineCache;
+  try {
+    const raw = AsyncStorage ? await AsyncStorage.getItem(BASELINE_KEY) : null;
+    baselineCache = raw ? Number(raw) : null;
+  } catch {
+    baselineCache = null;
+  }
+  return baselineCache;
+}
+async function setBaseline(at: number) {
+  baselineCache = at;
+  try {
+    await AsyncStorage?.setItem(BASELINE_KEY, String(at));
+  } catch {
+    // 저장 실패해도 이번 실행 동안은 메모리 값으로 동작해요
+  }
+}
+const newestFirst = (list: Screenshot[]) => [...list].sort((a, b) => (b.takenAt ?? 0) - (a.takenAt ?? 0));
+/** 기준 시각이 없으면(처음 세팅 전 · 예전 사용자) 전부 새 캡처로 봐요 */
+function splitByBaseline(all: Screenshot[], baseline: number | null) {
+  const sorted = newestFirst(all);
+  if (baseline == null) return { items: sorted, pastItems: [] as Screenshot[] };
+  return {
+    items: sorted.filter((s) => (s.takenAt ?? 0) >= baseline),
+    pastItems: sorted.filter((s) => (s.takenAt ?? 0) < baseline),
+  };
+}
+
 /** 기기 스크린샷 다시 불러오기 (서버 모드). 홈에 들어올 때마다 불러요 */
 export async function refreshNewCaptures() {
   if (!USE_SERVER) return;
   setNc({ loading: ncState.items.length === 0, error: null });
   try {
-    const items = await loadUnsortedScreenshots();
-    setNc({ items, loading: false });
+    const all = await loadUnsortedScreenshots();
+    lastLoaded = all;
+    setNc({ ...splitByBaseline(all, await getBaseline()), loading: false });
   } catch (e) {
     setNc({ loading: false, error: e instanceof Error ? e.message : '사진을 불러오지 못했어요.' });
   }
@@ -83,6 +122,9 @@ export function expandNewCaptures() {
  * 최근 10장만 새 캡처로 남기고 나머지는 지난 캡처로
  */
 export function moveOldToPast() {
+  // 서버 모드: 10번째로 최근 사진의 찍은 시각으로 기준을 옮겨서, 다음에 불러와도 유지돼요
+  const tenth = ncState.items[9];
+  if (USE_SERVER && tenth?.takenAt != null) void setBaseline(tenth.takenAt);
   setNc({ items: ncState.items.slice(0, 10), pastItems: [...ncState.items.slice(10), ...ncState.pastItems] });
 }
 
@@ -105,6 +147,17 @@ export const MOCK_TOTAL_SCREENSHOTS = 482;
 /** 범위별로 새 캡처가 되는 장수 (목업). 최근 한 달은 실제로는 찍은 날짜로 계산 */
 const RANGE_COUNT: Record<OnboardingRange, number> = { RECENT_30: 30, LAST_MONTH: 64, ALL: MOCK_TOTAL_SCREENSHOTS };
 
+/** 처음 세팅 범위 고르기 화면에 보여줄 전체 스크린샷 장수 (서버 모드면 기기에서 세요) */
+export async function countAllScreenshots(): Promise<number> {
+  if (!USE_SERVER) return MOCK_TOTAL_SCREENSHOTS;
+  try {
+    lastLoaded = await loadUnsortedScreenshots();
+    return lastLoaded.length;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * 처음 세팅을 마쳤는지 (서버 onboarding.done)
  * 테스트용: false 로 바꾸면 로그인할 때마다 처음 세팅부터 보여요
@@ -118,7 +171,21 @@ export function isOnboardingDone() {
  * 범위 고르기 → [첫 10장 나누기] (PUT /users/me/onboarding)
  * 고른 범위만 새 캡처, 나머지는 지난 캡처로 나눠요 (baseline_at)
  */
-export function applyOnboardingRange(range: OnboardingRange) {
+export async function applyOnboardingRange(range: OnboardingRange) {
+  if (USE_SERVER) {
+    // 기기 스크린샷으로 기준 시각을 정해요 (최근 30장 → 30번째 사진 시각, 한 달 → 30일 전, 전부 → 처음부터)
+    const all = newestFirst(lastLoaded.length ? lastLoaded : await loadUnsortedScreenshots());
+    lastLoaded = all;
+    const baseline =
+      range === 'RECENT_30'
+        ? (all[Math.min(29, all.length - 1)]?.takenAt ?? 0)
+        : range === 'LAST_MONTH'
+          ? Date.now() - 30 * 86400000
+          : 0;
+    await setBaseline(baseline);
+    setNc({ ...splitByBaseline(all, baseline), collapsedOn: null });
+    return;
+  }
   const all = Array.from({ length: MOCK_TOTAL_SCREENSHOTS }, (_, i) =>
     i < UNSORTED_SCREENSHOTS.length ? UNSORTED_SCREENSHOTS[i] : { id: `shot-all-${i}`, capturedAt: '' },
   );

@@ -28,3 +28,10 @@ export const ImageManipulator = optionalModule(
   () => require('expo-image-manipulator') as typeof import('expo-image-manipulator'),
   'expo-image-manipulator',
 );
+
+type KeyValueStore = { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
+/** 앱 로컬 저장 (명세서: 분류 기록·기준 시각 등은 기기에 저장) */
+export const AsyncStorage = optionalModule(
+  () => (require('@react-native-async-storage/async-storage') as { default: KeyValueStore }).default,
+  '@react-native-async-storage/async-storage',
+);

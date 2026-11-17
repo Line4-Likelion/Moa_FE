@@ -31,8 +31,8 @@ import {
   nextWeekSameDay,
   parseDay,
   ANALYSIS_STEP_LABEL,
+  ANALYSIS_STEPS,
   reanalyze,
-  type AnalysisStep,
   redoPractices,
   snoozeCaptures,
   toggleChecklist,
@@ -46,7 +46,6 @@ import { MOCK_FAIL } from '../mock/failures';
 type Props = NativeStackScreenProps<RootStackParamList, 'PracticeDetail'>;
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const ANALYSIS_STEPS: AnalysisStep[] = ['OCR', 'DEADLINE', 'CATEGORIZE', 'GUIDE'];
 const md = (key: string) => {
   const d = parseDay(key);
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
