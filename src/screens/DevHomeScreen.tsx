@@ -12,7 +12,7 @@ export function DevHomeScreen() {
   const nav = useNavigation();
 
   const items: Item[] = [
-    { label: '07A 보관함 · 완료함', code: 'C-12~C-15', go: () => nav.navigate('Tabs', { screen: 'Archive' }) },
+    { label: '07A 참고함 · 완료함', code: 'C-12~C-15', go: () => nav.navigate('Tabs', { screen: 'Archive' }) },
     { label: 'S11C 완료함 빈 상태', code: 'C-12~C-15', go: () => nav.navigate('Tabs', { screen: 'Archive', params: { empty: true } }) },
     { label: '11 / 11B 카테고리 추가', code: 'B-02~B-05', go: () => nav.navigate('CategoryAdd') },
     { label: '12 카테고리 변경', code: 'B-04', go: () => nav.navigate('CategoryChange', { label: '연남 소바실' }) },

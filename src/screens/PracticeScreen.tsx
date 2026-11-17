@@ -442,7 +442,7 @@ export function PracticeScreen() {
           const save = () => {
             if (!excludePractices(ids)) return failed(save);
             exitSelect();
-            setToast('보관함으로 옮겼어요', true);
+            setToast('참고함으로 옮겼어요', true);
           };
           save();
         }}

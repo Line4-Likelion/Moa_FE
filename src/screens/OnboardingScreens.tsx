@@ -147,7 +147,7 @@ export function OnboardingResultScreen({ navigation, route }: Nav<'OnboardingRes
         <Text style={[styles.desc, { textAlign: 'center' }]}>
           {practice > 0
             ? 'AI가 실천할 방법을 정리하고 있어요.\n고른 범위의 남은 사진은 홈에서 이어서 나눌 수 있어요.'
-            : `참고 ${reference}장을 보관함에 모아뒀어요.\n남은 사진은 홈에서 이어서 나눌 수 있어요.`}
+            : `참고 ${reference}장을 참고함에 모아뒀어요.\n남은 사진은 홈에서 이어서 나눌 수 있어요.`}
         </Text>
       </View>
 

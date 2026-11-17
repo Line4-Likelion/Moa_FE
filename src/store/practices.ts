@@ -504,7 +504,7 @@ export function resumeCaptures(ids: string[]) {
   patch(ids, (c) => ({ ...c, snooze_until: null }));
 }
 
-/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 보관함(참고)으로 옮겨요 */
+/** 제외 (DISMISS = 명세서의 '안함'). 분석 내용을 지우고 참고함(참고)으로 옮겨요 */
 export function excludePractices(ids: string[]) {
   if (saveFails()) return false;
   if (USE_SERVER) serverAction(ids, 'DISMISS', {}, true);

@@ -7,7 +7,7 @@ import { colors, fonts } from '../theme';
 const TABS: Record<string, { label: string; Icon: LucideIcon }> = {
   Home: { label: '홈', Icon: House },
   Practice: { label: '실천함', Icon: LayoutGrid },
-  Archive: { label: '보관함', Icon: Archive },
+  Archive: { label: '참고함', Icon: Archive },
   My: { label: '마이', Icon: UserRound },
 };
 
