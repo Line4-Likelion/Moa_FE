@@ -247,7 +247,7 @@ function buildActivity(captures: Capture[]): Activity {
       const future = date > today;
       const isToday = key === dayKey(today);
       // 오늘은 실제 기록만, 지난날은 예시 기록 + 실제 기록
-      const count = future ? 0 : (doneByDay.get(key) ?? 0) + (isToday ? 0 : mockHistory(key));
+      const count = future ? 0 : (doneByDay.get(key) ?? 0) + (isToday || USE_SERVER ? 0 : mockHistory(key));
       total += count;
       week.push({ date: key, count, level: future ? 0 : levelOf(count) });
     }
