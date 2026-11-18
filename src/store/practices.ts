@@ -1329,9 +1329,9 @@ export async function deleteReferences(ids: string[]): Promise<DeleteResult> {
     try {
       allowed = await MediaLibrary.deleteAssetsAsync(onDevice);
     } catch (error) {
-      // 기기에서 이미 지워진 사진이면 팝업 없이 실패해요 → 서버 기록만 지워요
-      console.warn('[moa] 기기 사진 삭제 실패 (이미 지워졌을 수 있어요)', error);
-      allowed = true;
+      // 안드로이드는 시스템 팝업에서 '거부'하면 오류로 와요. 오류는 전부 '취소'로 보고 아무것도 지우지 않아요
+      console.warn('[moa] 기기 사진 삭제 취소 또는 실패', error);
+      allowed = false;
     }
     if (!allowed) return { status: 'cancelled', deleted: [], failed: [] };
   }
