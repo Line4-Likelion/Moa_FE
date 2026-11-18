@@ -3,7 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { MOCK_FAIL } from '../mock/failures';
 import * as api from '../services/api';
 import { USE_SERVER } from '../services/config';
-import { ImageManipulator, MediaLibrary } from '../services/native';
+import { AsyncStorage, ImageManipulator, MediaLibrary } from '../services/native';
 
 /* ═════════ API 명세서와 같은 모양의 데이터 (Capture 객체) ═════════
  * 서버 연동 시 이 타입 그대로 응답을 받아 넣으면 돼요.
@@ -598,9 +598,15 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
   if (saveFails()) return false;
   if (USE_SERVER) {
     const facts = Object.entries(values).map(([key, value]) => ({ key, value: value.trim() || null }));
-    // 서버는 value: null 을 'AI 값으로 되돌리기'로 받아요. 그래서 '마감 없음'은 빈 문자열로 보내요
-    // TODO(백엔드 확인): 빈 문자열("")을 '마감 없음'으로 처리하는지
-    if (deadline !== undefined) facts.push({ key: 'deadline', value: deadline ?? '' });
+    if (deadline !== undefined) {
+      if (deadline === null) {
+        // '마감 없음': 서버에 저장할 방법이 없어서(null 은 AI 값 되돌리기) 이 폰에만 기억해요
+        rememberNoDeadline(id, true);
+      } else {
+        rememberNoDeadline(id, false);
+        facts.push({ key: 'deadline', value: deadline });
+      }
+    }
     if (facts.length) {
       api
         .patchFacts(id, facts)
@@ -631,6 +637,7 @@ export function updateFacts(id: string, values: Record<string, string>, deadline
 /** AI가 읽은 값으로 되돌리기 (PATCH /captures/{id}/facts 에 value: null) */
 export function revertFact(id: string, key: string) {
   if (saveFails()) return false;
+  if (key === 'deadline') rememberNoDeadline(id, false);
   if (USE_SERVER) {
     // 서버가 AI 가 읽은 값으로 되돌려서 돌려줘요
     api
@@ -908,7 +915,7 @@ function toCategory(c: { id: number; name: string; is_custom: boolean } | null):
 
 /** 서버 응답 → 앱 데이터. 목록(요약형)에는 상세가 없어서, 이미 받아 둔 상세는 지우지 않고 이어 써요 */
 function fromServer(s: api.ServerCapture, prev?: Capture): Capture {
-  return {
+  return applyLocalNoDeadline({
     id: String(s.id),
     file_key: s.file_key,
     status: s.status,
@@ -931,8 +938,51 @@ function fromServer(s: api.ServerCapture, prev?: Capture): Capture {
     job_step: prev?.job_step,
     progress: s.checklist_progress ?? prev?.progress,
     detail_loaded: s.checklist !== undefined ? true : prev?.detail_loaded,
+  });
+}
+
+/* ───────── 이 폰에만 저장하는 '마감 없음' ─────────
+ * 서버에는 마감을 '없음'으로 저장하는 값이 없어요 (value: null 은 AI 값으로 되돌리기).
+ * 그래서 '마감 없음'을 고른 실천은 이 기기에 기억해두고, 서버 데이터 위에 덮어써서 보여줘요.
+ * 날짜로 다시 바꾸거나 'AI가 읽은 값으로 되돌리기'를 하면 기억을 지워요.
+ * TODO(백엔드): 서버가 마감 없음을 지원하면 이 부분을 지우고 서버로 보내기
+ */
+const NO_DEADLINE_STORE_KEY = 'moa.noDeadline';
+const localNoDeadline = new Set<string>();
+
+function applyLocalNoDeadline(c: Capture): Capture {
+  if (!localNoDeadline.has(c.id)) return c;
+  const hasFact = c.facts.some((f) => f.key === 'deadline');
+  return {
+    ...c,
+    deadline: NO_DEADLINE,
+    // 정보 수정 화면에서 'AI가 읽은 값으로 되돌리기'가 보이도록 '직접 고침'으로 표시
+    facts: hasFact
+      ? c.facts.map((f) => (f.key === 'deadline' ? { ...f, value: null, edited: true } : f))
+      : [...c.facts, { key: 'deadline', label: '마감', value: null, box: null, edited: true }],
   };
 }
+
+function rememberNoDeadline(id: string, on: boolean) {
+  const changed = on ? !localNoDeadline.has(id) : localNoDeadline.has(id);
+  if (!changed) return;
+  if (on) localNoDeadline.add(id);
+  else localNoDeadline.delete(id);
+  AsyncStorage?.setItem(NO_DEADLINE_STORE_KEY, JSON.stringify([...localNoDeadline])).catch(() => {});
+}
+
+/** 앱을 켤 때 이 폰에 기억해둔 '마감 없음'을 불러와요 */
+async function loadLocalNoDeadline() {
+  try {
+    const raw = AsyncStorage ? await AsyncStorage.getItem(NO_DEADLINE_STORE_KEY) : null;
+    const ids: unknown = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(ids)) ids.forEach((id) => localNoDeadline.add(String(id)));
+    if (localNoDeadline.size) commit(state.captures.map(applyLocalNoDeadline));
+  } catch {
+    // 못 불러와도 서버 값으로 보여줘요
+  }
+}
+if (USE_SERVER) void loadLocalNoDeadline();
 
 function upsert(capture: Capture) {
   const exists = state.captures.some((c) => c.id === capture.id);
