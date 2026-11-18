@@ -5,7 +5,10 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Clock3, Sprout } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { LogoutSheet } from '../components/LogoutSheet';
-import { errorMessage, logout, type AlarmSettings, type AuthUser } from '../services/api';
+import { DeleteAccountSheet } from '../components/DeleteAccountSheet';
+import { deleteAccount, errorMessage, logout, type AlarmSettings, type AuthUser } from '../services/api';
+import { USE_SERVER } from '../services/config';
+import { clearDeviceData } from '../store/home';
 import { Screen } from '../components/Screen';
 import { Card, Caption, Divider, Lines, SettingItem, StatusChip } from '../components/ui';
 import type { TabParamList } from '../navigation/types';
@@ -25,6 +28,8 @@ export function MyScreen({ route }: Props) {
   const navigation = useNavigation();
   const account = useAccount();
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,16 +55,48 @@ export function MyScreen({ route }: Props) {
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
+  // 회원 탈퇴 (DELETE /users/me). 서버가 계정과 함께 푸시 토큰·기록을 지워요
+  const onConfirmDelete = async () => {
+    setDeleting(true);
+    await stopGeofences(); // 기기에 등록한 장소 알림부터 해제
+    try {
+      if (USE_SERVER) await deleteAccount();
+    } catch (error) {
+      setDeleting(false);
+      // 실패하면 로그인 상태 그대로: 위치 알림을 쓰고 있었다면 다시 등록해요
+      if (settings.locationAlarmEnabled) void syncGeofences(true);
+      Alert.alert('탈퇴하지 못했어요', errorMessage(error));
+      return;
+    }
+    await clearDeviceData();
+    resetStore();
+    resetAccount();
+    setDeleting(false);
+    setDeleteOpen(false);
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
   return (
     <>
       <Screen title="마이" hasTabBar contentStyle={{ gap: variant === 'default' ? 12 : 16 }}>
         {variant === 'default' && (
-          <DefaultView profile={account.profile} settings={settings} onLogout={() => setLogoutOpen(true)} />
+          <DefaultView
+            profile={account.profile}
+            settings={settings}
+            onLogout={() => setLogoutOpen(true)}
+            onDeleteAccount={() => setDeleteOpen(true)}
+          />
         )}
         {variant === 'error' && <ErrorView settings={settings} onRetry={() => void loadAccount()} />}
         {variant === 'saved' && <SavedView profile={account.profile} settings={settings} />}
       </Screen>
       <LogoutSheet visible={logoutOpen} onCancel={() => setLogoutOpen(false)} onConfirm={onConfirmLogout} />
+      <DeleteAccountSheet
+        visible={deleteOpen}
+        busy={deleting}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => void onConfirmDelete()}
+      />
     </>
   );
 }
@@ -69,10 +106,12 @@ function DefaultView({
   profile,
   settings,
   onLogout,
+  onDeleteAccount,
 }: {
   profile: AuthUser | null;
   settings: AlarmSettings;
   onLogout: () => void;
+  onDeleteAccount: () => void;
 }) {
   const navigation = useNavigation();
   const quiet = useQuietHours();
@@ -194,9 +233,15 @@ function DefaultView({
       </Card>
 
       <Lines size={11} lines={['다시 실천하기를 하면 대기 알림이 재개돼요.', '참고 항목에는 알림을 보내지 않아요.']} />
-      <Pressable onPress={onLogout} hitSlop={8} accessibilityRole="button">
-        <Caption>로그아웃</Caption>
-      </Pressable>
+      <View style={styles.accountLinks}>
+        <Pressable onPress={onLogout} hitSlop={8} accessibilityRole="button">
+          <Caption>로그아웃</Caption>
+        </Pressable>
+        <Text style={styles.accountDivider}>·</Text>
+        <Pressable onPress={onDeleteAccount} hitSlop={8} accessibilityRole="button">
+          <Caption>회원 탈퇴</Caption>
+        </Pressable>
+      </View>
     </>
   );
 }
@@ -271,6 +316,8 @@ function SavedView({ profile, settings }: { profile: AuthUser | null; settings: 
 }
 
 const styles = StyleSheet.create({
+  accountLinks: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  accountDivider: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, color: colors.textSub },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: {
     width: 48,
