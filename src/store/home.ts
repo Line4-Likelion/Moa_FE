@@ -198,6 +198,17 @@ export function finishOnboarding() {
   onboardingDone = true;
 }
 /** 개발용: 처음 세팅 다시 보기 */
+/** 탈퇴할 때 기기에 저장한 새 캡처 기준 시각을 지워요 */
+export async function clearDeviceData() {
+  baselineCache = null;
+  lastLoaded = [];
+  try {
+    await AsyncStorage?.setItem(BASELINE_KEY, '');
+  } catch {
+    // 지우기 실패해도 탈퇴에는 영향 없어요
+  }
+}
+
 export function resetOnboarding() {
   onboardingDone = false;
 }

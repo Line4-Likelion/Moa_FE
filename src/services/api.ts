@@ -201,6 +201,12 @@ export async function logout() {
   }
 }
 
+/** 회원 탈퇴 (DELETE /users/me). 성공하면 기기의 로그인 정보도 지워요. 실패하면 던져요(로그인 유지) */
+export async function deleteAccount() {
+  await request<void>('/users/me', { method: 'DELETE' });
+  clearSession();
+}
+
 export async function getMe() {
   const user = await request<AuthUser>('/users/me');
   currentUser = user;

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useRef, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
+import { useKeyboardInset } from './useKeyboardInset';
 import { colors, fonts } from '../theme';
 
 type Props = {
@@ -29,10 +30,13 @@ export function Screen({
   scrollable = true,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  // 안드로이드 키보드 높이만큼 화면을 올려요 (하단 버튼도 키보드 위로)
+  const keyboard = useKeyboardInset(scrollable ? scrollRef : undefined);
   const Body = scrollable ? ScrollView : View;
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: keyboard }]}>
       <View style={styles.header}>
         {onBack && (
           <Pressable accessibilityRole="button" accessibilityLabel="뒤로" onPress={onBack} hitSlop={10}>
@@ -45,6 +49,7 @@ export function Screen({
       </View>
       {header}
       <Body
+        ref={scrollable ? (scrollRef as never) : undefined}
         style={styles.flex}
         {...(scrollable
           ? { contentContainerStyle: [styles.content, contentStyle], keyboardShouldPersistTaps: 'handled' as const }
@@ -53,9 +58,9 @@ export function Screen({
         {scrollable ? children : <View style={[styles.content, contentStyle]}>{children}</View>}
       </Body>
       {footer && (
-        <View style={[styles.footer, { paddingBottom: 8 + (hasTabBar ? 0 : insets.bottom) }]}>{footer}</View>
+        <View style={[styles.footer, { paddingBottom: 8 + (hasTabBar || keyboard ? 0 : insets.bottom) }]}>{footer}</View>
       )}
-      {!footer && !hasTabBar && <View style={{ height: insets.bottom }} />}
+      {!footer && !hasTabBar && !keyboard && <View style={{ height: insets.bottom }} />}
     </View>
   );
 }

@@ -168,10 +168,14 @@ export function PracticeDetailScreen({ navigation, route }: Props) {
           : c.deadline.status === 'UNCLEAR'
             ? null
             : '없음',
-      edited: false,
+      // 서버 facts 의 deadline 항목에 '직접 고친 값' 표시가 들어 있어요
+      edited: !!c.facts.find((f) => f.key === 'deadline')?.edited,
       hasBox: !!c.deadline.box,
     },
-    ...c.facts.map((f) => ({ key: f.key, label: f.label, value: f.value, edited: f.edited, hasBox: !!f.box })),
+    // 서버 facts 에도 deadline 이 있어서 같은 key 가 두 번 생기던 문제 → 마감은 위 한 줄만
+    ...c.facts
+      .filter((f) => f.key !== 'deadline')
+      .map((f) => ({ key: f.key, label: f.label, value: f.value, edited: f.edited, hasBox: !!f.box })),
   ];
   const warnCount = factRows.filter((f) => f.value === null).length;
 

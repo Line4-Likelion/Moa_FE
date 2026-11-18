@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, type ComponentRef } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -12,12 +12,16 @@ import { MOCK_LOGIN_FAIL_EMAIL, MOCK_TAKEN_EMAIL } from '../mock/failures';
 import { authenticate } from '../services/api';
 import { USE_SERVER } from '../services/config';
 import { Check } from 'lucide-react-native';
+import { useKeyboardInset } from '../components/useKeyboardInset';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* ───────── 로그인 ───────── */
 export function LoginScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Login'>) {
   const insets = useSafeAreaInsets();
+  const loginScroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  // 안드로이드: 키보드가 비밀번호 칸을 가리지 않게
+  const keyboard = useKeyboardInset(loginScroll);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -47,10 +51,10 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStackPara
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      style={[styles.root, { paddingTop: insets.top, paddingBottom: keyboard || insets.bottom }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.loginContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={loginScroll} contentContainerStyle={styles.loginContent} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Text style={styles.logo}>MOA</Text>
           <Text style={styles.tagline}>{'흩어진 스크린샷을\n나의 실천으로 모아요.'}</Text>

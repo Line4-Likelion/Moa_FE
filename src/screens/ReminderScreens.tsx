@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Info, X } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
@@ -30,6 +31,8 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
   const [start, setStart] = useState(quiet.start);
   const [end, setEnd] = useState(quiet.end);
   const [saving, setSaving] = useState(false);
+  /** ⓘ 눌렀을 때 '다시 알려드릴 간격' 설명 */
+  const [infoOpen, setInfoOpen] = useState(false);
   // 위치 기반 알림: 마이 화면과 같은 기준 (서버 설정 + 기기 위치 권한 '항상 허용')
   const { access, refresh: refreshAccess } = useLocationAccess();
   const hasAccess = access === 'granted';
@@ -100,7 +103,31 @@ export function ReminderSettingsScreen({ navigation }: ReminderProps) {
         </View>
       }
     >
-      <Text style={styles.sectionTitle}>다시 알려드릴 간격</Text>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>다시 알려드릴 간격</Text>
+        <Pressable
+          onPress={() => setInfoOpen((v) => !v)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="다시 알려드릴 간격 설명 보기"
+          accessibilityState={{ expanded: infoOpen }}
+        >
+          <Info size={16} color={infoOpen ? colors.primary : colors.textSub} strokeWidth={2} />
+        </Pressable>
+      </View>
+      {infoOpen && (
+        <View style={styles.infoBox} accessibilityLiveRegion="polite">
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={styles.infoText}>
+              마감 없는 실천을 하나씩 골라 이 간격마다 알려드려요.
+            </Text>
+            <Text style={styles.infoSub}>마감 있는 실천은 전날과 당일에 알려드릴게요.</Text>
+          </View>
+          <Pressable onPress={() => setInfoOpen(false)} hitSlop={10} accessibilityRole="button" accessibilityLabel="설명 닫기">
+            <X size={16} color={colors.textSub} strokeWidth={2} />
+          </Pressable>
+        </View>
+      )}
       <View style={{ gap: 8 }}>
         {INTERVALS.map((o) => (
           <OptionRow
@@ -216,7 +243,19 @@ export function SettingsSaveFailedScreen({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   actions: { flexDirection: 'row', gap: 8 },
-  sectionTitle: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 22.5, color: colors.text },
+  sectionTitle: { includeFontPadding: false, fontFamily: fonts.bold, fontSize: 15, lineHeight: 22.5, color: colors.text },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: colors.tint,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  infoText: { includeFontPadding: false, fontFamily: fonts.medium, fontSize: 13, lineHeight: 20, color: colors.text },
+  infoSub: { includeFontPadding: false, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },
   quietHours: { flexDirection: 'row', gap: 12 },
   errorTitle: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 21, color: colors.error },
   errorBody: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.textSub },

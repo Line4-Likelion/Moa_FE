@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Archive, CircleCheck } from 'lucide-react-native';
@@ -44,6 +44,16 @@ export function ArchiveScreen({ route }: BottomTabScreenProps<TabParamList, 'Arc
   useEffect(() => {
     navigation.setOptions({ tabBarStyle: selectMode ? { display: 'none' } : undefined });
   }, [navigation, selectMode]);
+  // 안드로이드 뒤로가기: 선택 모드면 홈으로 가지 말고 선택만 풀어요
+  useEffect(() => {
+    if (!selectMode) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelectMode(false);
+      setSelected([]);
+      return true;
+    });
+    return () => sub.remove();
+  }, [selectMode]);
   // 다른 탭으로 나가거나, 항목이 모두 사라지면 선택 모드를 해제해요
   useEffect(
     () =>
